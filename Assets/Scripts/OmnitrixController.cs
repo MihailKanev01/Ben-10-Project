@@ -1,4 +1,4 @@
-// OmnitrixController.cs - Using generic camera reference
+// OmnitrixController.cs - Attach to the main Player GameObject
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
@@ -14,7 +14,11 @@ public class OmnitrixController : MonoBehaviour
         public MonoBehaviour alienScript;
         public Transform cameraTarget;
         public float transformationCooldown = 30f;
-        public KeyCode transformationKey = KeyCode.T; // Default key, can be customized
+        public KeyCode transformationKey = KeyCode.Alpha1; // Customize per alien (1,2,3,etc)
+
+        [Header("Camera Settings")]
+        public float cameraDistance = 5.0f;  // Distance from camera to alien
+        public float cameraHeight = 1.5f;    // Height offset for camera
 
         [HideInInspector] public bool isOnCooldown = false;
         [HideInInspector] public float cooldownRemaining = 0f;
@@ -25,6 +29,8 @@ public class OmnitrixController : MonoBehaviour
     public CharacterController benController;
     public PlayerController benPlayerController;
     public Transform benCameraTarget;
+    public float benCameraDistance = 5.0f;   // Default camera distance for Ben
+    public float benCameraHeight = 1.5f;     // Default camera height for Ben
 
     [Header("Available Aliens")]
     public List<AlienForm> availableAliens = new List<AlienForm>();
@@ -35,8 +41,7 @@ public class OmnitrixController : MonoBehaviour
     public KeyCode transformKey = KeyCode.T; // Press to transform
 
     [Header("Camera Settings")]
-    public MonoBehaviour cameraScript;  // Your camera script (any type)
-    public string targetPropertyName = "target"; // The name of the target property in your camera script
+    public FollowCamera followCamera;  // Reference to your FollowCamera script
 
     [Header("Effects")]
     public ParticleSystem transformationEffect;
@@ -57,6 +62,16 @@ public class OmnitrixController : MonoBehaviour
         if (audioSource == null)
         {
             audioSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        // Find camera if not assigned
+        if (followCamera == null)
+        {
+            followCamera = Camera.main.GetComponent<FollowCamera>();
+            if (followCamera == null)
+            {
+                Debug.LogError("Could not find FollowCamera on main camera! Please assign it in the inspector.");
+            }
         }
 
         // Initialize alien models (disable all at start)
@@ -87,7 +102,7 @@ public class OmnitrixController : MonoBehaviour
         benModel.SetActive(true);
 
         // Initialize camera target
-        SetCameraTarget(benCameraTarget);
+        SetCameraTarget(benCameraTarget, benCameraDistance, benCameraHeight);
 
         Debug.Log("Omnitrix Controller initialized. Press T to transform, C to cycle aliens.");
     }
@@ -175,7 +190,7 @@ public class OmnitrixController : MonoBehaviour
         }
     }
 
-    public void TransformToAlien(int alienIndex)
+    void TransformToAlien(int alienIndex)
     {
         // Validate index
         if (alienIndex < 0 || alienIndex >= availableAliens.Count)
@@ -199,12 +214,18 @@ public class OmnitrixController : MonoBehaviour
             return;
         }
 
+        // Play transformation effects
+        PlayTransformationEffects();
+
         // Start transformation sequence
         StartCoroutine(TransformationSequence(alienIndex));
     }
 
-    public void RevertToBen()
+    void RevertToBen()
     {
+        // Play transformation effects
+        PlayTransformationEffects();
+
         // Start transformation back to Ben
         StartCoroutine(TransformationSequence(-1));
     }
@@ -221,9 +242,6 @@ public class OmnitrixController : MonoBehaviour
 
     IEnumerator TransformationSequence(int targetAlienIndex, bool applyCooldown = true)
     {
-        // Play transformation effects
-        PlayTransformationEffects();
-
         // Freeze player during transformation
         DisableAllControllers();
 
@@ -252,8 +270,8 @@ public class OmnitrixController : MonoBehaviour
             benController.enabled = true;
             benPlayerController.enabled = true;
 
-            // Switch camera target to Ben
-            SetCameraTarget(benCameraTarget);
+            // Switch camera target to Ben with default settings
+            SetCameraTarget(benCameraTarget, benCameraDistance, benCameraHeight);
 
             // Set state
             isTransformed = false;
@@ -293,8 +311,12 @@ public class OmnitrixController : MonoBehaviour
                 targetAlien.alienScript.enabled = true;
             }
 
-            // Switch camera target
-            SetCameraTarget(targetAlien.cameraTarget);
+            // Switch camera target with alien-specific camera settings
+            SetCameraTarget(
+                targetAlien.cameraTarget,
+                targetAlien.cameraDistance,
+                targetAlien.cameraHeight
+            );
 
             // Update state
             currentAlienIndex = targetAlienIndex;
@@ -318,41 +340,23 @@ public class OmnitrixController : MonoBehaviour
         yield return new WaitForSeconds(0.3f);
     }
 
-    // Use reflection to set the camera target property
-    void SetCameraTarget(Transform target)
+    // Set camera target with specific settings
+    void SetCameraTarget(Transform target, float distance, float height)
     {
-        if (cameraScript == null || target == null)
+        if (followCamera == null || target == null)
+        {
+            Debug.LogError("Cannot set camera target: Camera or target is null");
             return;
-
-        // Use reflection to access the target property
-        System.Type type = cameraScript.GetType();
-
-        // Try to find and set the property
-        try
-        {
-            System.Reflection.PropertyInfo property = type.GetProperty(targetPropertyName);
-            if (property != null)
-            {
-                property.SetValue(cameraScript, target, null);
-            }
-            else
-            {
-                // Try to find a field with that name instead
-                System.Reflection.FieldInfo field = type.GetField(targetPropertyName);
-                if (field != null)
-                {
-                    field.SetValue(cameraScript, target);
-                }
-                else
-                {
-                    Debug.LogWarning($"Could not find property or field '{targetPropertyName}' in camera script. Camera will not follow.");
-                }
-            }
         }
-        catch (System.Exception e)
-        {
-            Debug.LogError($"Error setting camera target: {e.Message}");
-        }
+
+        // Set the target in the camera
+        followCamera.target = target;
+
+        // Directly set the distance and height values
+        followCamera.followDistance = distance;
+        followCamera.heightOffset = height;
+
+        Debug.Log($"Camera set to follow {target.name} at distance {distance} and height {height}");
     }
 
     void DisableAllControllers()

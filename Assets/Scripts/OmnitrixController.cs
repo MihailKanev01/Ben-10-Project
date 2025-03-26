@@ -517,4 +517,42 @@ public class OmnitrixController : MonoBehaviour
 
         return availableAliens[alienIndex].cooldownRemaining / availableAliens[alienIndex].transformationCooldown;
     }
+
+    // --- ADDED HELPER METHODS FOR ALIEN WHEEL INTEGRATION ---
+
+    /// <summary>
+    /// Public method to get the current selected alien index
+    /// </summary>
+    public int GetSelectedAlienIndex()
+    {
+        return selectedAlienIndex;
+    }
+
+    /// <summary>
+    /// Public method to handle transform button press
+    /// </summary>
+    public void TransformPressed()
+    {
+        if (!isTransformed)
+        {
+            TransformToAlien(selectedAlienIndex);
+        }
+        else
+        {
+            RevertToBen();
+        }
+    }
+
+    /// <summary>
+    /// Public method to cycle to the next alien
+    /// Used by AlienWheelOmnitrixBridge
+    /// </summary>
+    public void PublicCycleToNextAlien()
+    {
+        // Call the private implementation
+        if (!isTransformed)
+        {
+            CycleToNextAlien();
+        }
+    }
 }

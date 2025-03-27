@@ -1,4 +1,4 @@
-# 📜 Ben 10: Omniverse - Unity Game
+# 📜 Ben 10: Project - Unity Game
 
 
 ## 🌟 Project Overview  

@@ -4,11 +4,11 @@ using System.Collections;
 public class FasttrackController : MonoBehaviour
 {
     [Header("Movement Settings")]
-    public float walkSpeed = 7.0f;           // Faster than normal walk speed
-    public float runSpeed = 15.0f;           // Normal running is already fast
-    public float superSpeedMultiplier = 3.0f; // Multiplier during super speed
-    public float turnSmoothTime = 0.1f;      // Quick turning
-    public float speedSmoothTime = 0.1f;     // Quick acceleration
+    public float walkSpeed = 7.0f;
+    public float runSpeed = 15.0f;
+    public float superSpeedMultiplier = 3.0f;
+    public float turnSmoothTime = 0.1f;
+    public float speedSmoothTime = 0.1f;
 
     [Header("Jump Settings")]
     public float jumpForce = 10.0f;
@@ -20,28 +20,27 @@ public class FasttrackController : MonoBehaviour
     public LayerMask groundMask;
 
     [Header("Speed Abilities")]
-    public float speedBoostDuration = 3.0f;   // How long super speed lasts
-    public float speedBoostCooldown = 5.0f;   // Cooldown between uses
-    public float dashDistance = 15.0f;        // How far a dash goes
-    public float dashCooldown = 2.0f;         // Cooldown between dashes
-    public KeyCode speedBoostKey = KeyCode.Q; // Hold for sustained speed boost
-    public KeyCode dashKey = KeyCode.E;       // Tap for instant dash
+    public float speedBoostDuration = 3.0f;
+    public float speedBoostCooldown = 5.0f;
+    public float dashDistance = 15.0f;
+    public float dashCooldown = 2.0f;
+    public KeyCode speedBoostKey = KeyCode.Q;
+    public KeyCode dashKey = KeyCode.E;
 
     [Header("Visual Effects")]
-    public TrailRenderer speedTrail;          // Trail renderer for speed effects
-    public ParticleSystem speedBoostEffect;   // Particle effect during speed boost
-    public ParticleSystem dashEffect;         // Particle effect for dash
+    public TrailRenderer speedTrail;
+    public ParticleSystem speedBoostEffect;
+    public ParticleSystem dashEffect;
 
     [Header("Audio")]
     public AudioClip speedBoostSound;
     public AudioClip dashSound;
 
     [Header("Camera Settings")]
-    public Transform cameraTarget;            // Empty object for camera to follow
-    public float cameraTurnInfluence = 0.7f;  // How much the camera affects movement direction (0-1)
-    public bool alignMovementWithCamera = true; // Move in camera's forward direction
+    public Transform cameraTarget;
+    public float cameraTurnInfluence = 0.7f;
+    public bool alignMovementWithCamera = true;
 
-    // Private variables
     private CharacterController controller;
     private Animator animator;
     private float turnSmoothVelocity;
@@ -52,13 +51,13 @@ public class FasttrackController : MonoBehaviour
     private Transform mainCamera;
     private AudioSource audioSource;
 
-    // Ability cooldowns and states
     private float speedBoostCooldownRemaining = 0f;
     private float dashCooldownRemaining = 0f;
     private bool isSuperSpeedActive = false;
     private bool isDashing = false;
+    private float superSpeedTimeRemaining = 0f;
+    private bool superSpeedSoundPlayed = false;
 
-    // Animation parameter hashes
     private int speedHash;
     private int jumpHash;
     private int groundedHash;
@@ -67,7 +66,6 @@ public class FasttrackController : MonoBehaviour
 
     void Start()
     {
-        // Get components
         controller = GetComponent<CharacterController>();
         animator = GetComponent<Animator>();
         mainCamera = Camera.main.transform;
@@ -78,7 +76,6 @@ public class FasttrackController : MonoBehaviour
             audioSource = gameObject.AddComponent<AudioSource>();
         }
 
-        // Cache animation parameter hashes
         if (animator != null)
         {
             speedHash = Animator.StringToHash("Speed");
@@ -88,7 +85,6 @@ public class FasttrackController : MonoBehaviour
             superSpeedHash = Animator.StringToHash("SuperSpeed");
         }
 
-        // Create ground check if missing
         if (groundCheck == null)
         {
             groundCheck = new GameObject("FasttrackGroundCheck").transform;
@@ -96,7 +92,6 @@ public class FasttrackController : MonoBehaviour
             groundCheck.localPosition = new Vector3(0, -0.9f, 0);
         }
 
-        // Disable trail renderer initially
         if (speedTrail != null)
         {
             speedTrail.emitting = false;
@@ -105,11 +100,26 @@ public class FasttrackController : MonoBehaviour
 
     void Update()
     {
-        // Skip if controller is disabled
         if (controller == null || !controller.enabled)
             return;
 
-        // Update cooldowns
+        UpdateCooldowns();
+
+        if (isDashing)
+            return;
+
+        CheckGrounded();
+        UpdateAnimator();
+        HandleSuperSpeed();
+        HandleDashAbility();
+        ProcessMovement();
+        HandleJumping();
+        ApplyGravity();
+        UpdateCameraTarget();
+    }
+
+    void UpdateCooldowns()
+    {
         if (speedBoostCooldownRemaining > 0)
         {
             speedBoostCooldownRemaining -= Time.deltaTime;
@@ -119,47 +129,73 @@ public class FasttrackController : MonoBehaviour
         {
             dashCooldownRemaining -= Time.deltaTime;
         }
+    }
 
-        // Skip movement during dash
-        if (isDashing)
-            return;
-
-        // Check if grounded
+    void CheckGrounded()
+    {
         isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundMask);
 
         if (isGrounded && velocity.y < 0)
         {
             velocity.y = -2f;
         }
+    }
 
-        // Update animator
+    void UpdateAnimator()
+    {
         if (animator != null)
         {
             animator.SetBool(groundedHash, isGrounded);
-            animator.SetBool(superSpeedHash, isSuperSpeedActive);
-        }
 
-        // Handle speed boost activation/deactivation
-        if (Input.GetKeyDown(speedBoostKey) && speedBoostCooldownRemaining <= 0 && !isSuperSpeedActive)
+            if (System.Array.Exists(animator.parameters, param => param.name == "SuperSpeed"))
+            {
+                animator.SetBool(superSpeedHash, isSuperSpeedActive);
+            }
+        }
+    }
+
+    void HandleSuperSpeed()
+    {
+        bool canActivate = speedBoostCooldownRemaining <= 0;
+
+        if (Input.GetKey(speedBoostKey) && canActivate)
         {
-            StartCoroutine(ActivateSuperSpeed());
-        }
+            if (!isSuperSpeedActive)
+            {
+                ActivateSuperSpeed();
+            }
 
-        // Handle dash ability
+            if (superSpeedTimeRemaining > 0)
+            {
+                superSpeedTimeRemaining -= Time.deltaTime;
+
+                if (superSpeedTimeRemaining <= 0)
+                {
+                    DeactivateSuperSpeed();
+                }
+            }
+        }
+        else if (isSuperSpeedActive)
+        {
+            DeactivateSuperSpeed();
+        }
+    }
+
+    void HandleDashAbility()
+    {
         if (Input.GetKeyDown(dashKey) && dashCooldownRemaining <= 0 && isGrounded)
         {
             StartCoroutine(PerformDash());
         }
+    }
 
-        // Get input
+    void ProcessMovement()
+    {
         float horizontal = Input.GetAxisRaw("Horizontal");
         float vertical = Input.GetAxisRaw("Vertical");
         bool running = Input.GetKey(KeyCode.LeftShift);
-
-        // Calculate movement direction relative to camera
         Vector3 direction = new Vector3(horizontal, 0f, vertical).normalized;
 
-        // Apply movement
         if (direction.magnitude >= 0.1f)
         {
             Vector3 moveDir;
@@ -167,69 +203,54 @@ public class FasttrackController : MonoBehaviour
 
             if (alignMovementWithCamera)
             {
-                // Calculate target angle for rotation (based on camera)
                 targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + mainCamera.eulerAngles.y;
-
-                // Get camera-relative movement direction
                 moveDir = Quaternion.Euler(0f, mainCamera.eulerAngles.y, 0f) * Vector3.forward * vertical +
                           Quaternion.Euler(0f, mainCamera.eulerAngles.y, 0f) * Vector3.right * horizontal;
                 moveDir.Normalize();
             }
             else
             {
-                // Standard movement calculation
                 targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
                 moveDir = direction;
             }
 
-            // GTA-style camera behavior - partially blend between camera direction and character direction
             if (cameraTurnInfluence > 0)
             {
                 float cameraYaw = mainCamera.eulerAngles.y;
                 targetAngle = Mathf.LerpAngle(targetAngle, cameraYaw, cameraTurnInfluence);
             }
 
-            // Smooth rotation
             float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
             transform.rotation = Quaternion.Euler(0f, angle, 0f);
 
-            // Get final movement direction
             Vector3 finalMoveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
-
-            // Set target speed based on input and super speed state
             float targetSpeed = walkSpeed;
 
             if (running) targetSpeed = runSpeed;
             if (isSuperSpeedActive) targetSpeed *= superSpeedMultiplier;
 
             targetSpeed *= direction.magnitude;
-
-            // Smooth speed transitions
             currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref speedSmoothVelocity, speedSmoothTime);
-
-            // Move the character
             controller.Move(finalMoveDir.normalized * currentSpeed * Time.deltaTime);
         }
         else
         {
-            // Slow down to zero if no input
             currentSpeed = Mathf.SmoothDamp(currentSpeed, 0, ref speedSmoothVelocity, speedSmoothTime);
         }
 
-        // Update animator speed parameter
         if (animator != null)
         {
             animator.SetFloat(speedHash, currentSpeed);
         }
+    }
 
-        // Handle jumping
+    void HandleJumping()
+    {
         if (Input.GetButtonDown("Jump") && isGrounded)
         {
-            // Calculate jump velocity
             float jumpVelocity = Mathf.Sqrt(jumpForce * -2f * gravity);
             velocity.y = jumpVelocity;
 
-            // Trigger jump animation
             if (animator != null)
             {
                 animator.SetTrigger(jumpHash);
@@ -237,24 +258,27 @@ public class FasttrackController : MonoBehaviour
 
             isGrounded = false;
         }
+    }
 
-        // Apply gravity
+    void ApplyGravity()
+    {
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
+    }
 
-        // Update camera target position
+    void UpdateCameraTarget()
+    {
         if (cameraTarget != null)
         {
             cameraTarget.position = new Vector3(transform.position.x, transform.position.y + 1.5f, transform.position.z);
         }
     }
 
-    IEnumerator ActivateSuperSpeed()
+    void ActivateSuperSpeed()
     {
-        // Activate super speed
         isSuperSpeedActive = true;
+        superSpeedTimeRemaining = speedBoostDuration;
 
-        // Visual effects
         if (speedTrail != null)
         {
             speedTrail.emitting = true;
@@ -265,21 +289,20 @@ public class FasttrackController : MonoBehaviour
             speedBoostEffect.Play();
         }
 
-        // Play sound
-        if (audioSource != null && speedBoostSound != null)
+        if (audioSource != null && speedBoostSound != null && !superSpeedSoundPlayed)
         {
             audioSource.PlayOneShot(speedBoostSound);
+            superSpeedSoundPlayed = true;
         }
 
         Debug.Log("Fasttrack: Super Speed activated!");
+    }
 
-        // Stay in super speed for the duration
-        yield return new WaitForSeconds(speedBoostDuration);
-
-        // Deactivate super speed
+    void DeactivateSuperSpeed()
+    {
         isSuperSpeedActive = false;
+        superSpeedSoundPlayed = false;
 
-        // Turn off visual effects
         if (speedTrail != null)
         {
             speedTrail.emitting = false;
@@ -290,7 +313,6 @@ public class FasttrackController : MonoBehaviour
             speedBoostEffect.Stop();
         }
 
-        // Start cooldown
         speedBoostCooldownRemaining = speedBoostCooldown;
 
         Debug.Log("Fasttrack: Super Speed deactivated. Cooldown started.");
@@ -300,51 +322,40 @@ public class FasttrackController : MonoBehaviour
     {
         isDashing = true;
 
-        // Trigger dash animation
-        if (animator != null)
+        if (animator != null && System.Array.Exists(animator.parameters, param => param.name == "Dash"))
         {
             animator.SetTrigger(dashHash);
         }
 
-        // Play dash effect
         if (dashEffect != null)
         {
             dashEffect.Play();
         }
 
-        // Play sound
         if (audioSource != null && dashSound != null)
         {
             audioSource.PlayOneShot(dashSound);
         }
 
-        // Store current position and rotation
         Vector3 startPosition = transform.position;
         Vector3 dashDirection = transform.forward;
-
-        // Calculate target position
         Vector3 targetPosition = startPosition + dashDirection * dashDistance;
 
-        // Perform a raycast to check for obstacles
         RaycastHit hit;
         if (Physics.Raycast(startPosition, dashDirection, out hit, dashDistance, groundMask))
         {
-            // Adjust target position to stop before hitting obstacle
             targetPosition = hit.point - (dashDirection * controller.radius);
         }
 
-        // Quick dash movement
         float dashDuration = 0.2f;
         float elapsedTime = 0;
 
         while (elapsedTime < dashDuration)
         {
-            // Calculate dash progress
             float t = elapsedTime / dashDuration;
-            t = t * t * (3f - 2f * t); // Smoothstep interpolation
+            t = t * t * (3f - 2f * t);
 
-            // Move character
-            controller.enabled = false; // Temporarily disable controller to prevent collisions during dash
+            controller.enabled = false;
             transform.position = Vector3.Lerp(startPosition, targetPosition, t);
             controller.enabled = true;
 
@@ -352,19 +363,16 @@ public class FasttrackController : MonoBehaviour
             yield return null;
         }
 
-        // Ensure we reach target position exactly
         controller.enabled = false;
         transform.position = targetPosition;
         controller.enabled = true;
 
-        // Set cooldown
         dashCooldownRemaining = dashCooldown;
         isDashing = false;
 
         Debug.Log("Fasttrack: Dash completed!");
     }
 
-    // Public method to enable/disable controller (used by OmnitrixController)
     public void SetControllerActive(bool active)
     {
         this.enabled = active;
@@ -374,17 +382,14 @@ public class FasttrackController : MonoBehaviour
         }
     }
 
-    // Visual debugging
     void OnDrawGizmosSelected()
     {
         if (groundCheck != null)
         {
-            // Draw ground check sphere
             Gizmos.color = Color.yellow;
             Gizmos.DrawWireSphere(groundCheck.position, groundDistance);
         }
 
-        // Draw dash distance
         Gizmos.color = Color.blue;
         Gizmos.DrawRay(transform.position, transform.forward * dashDistance);
     }

@@ -41,7 +41,8 @@ public class OmnitrixController : MonoBehaviour
     public KeyCode transformKey = KeyCode.T; // Press to transform
 
     [Header("Camera Settings")]
-    public FollowCamera followCamera;  // Reference to your FollowCamera script
+    public FollowCamera followCamera;  // Reference to your original FollowCamera script
+    public ThirdPersonCamera thirdPersonCamera;  // Reference to your new ThirdPersonCamera script
 
     [Header("Effects")]
     public ParticleSystem transformationEffect;
@@ -65,12 +66,14 @@ public class OmnitrixController : MonoBehaviour
         }
 
         // Find camera if not assigned
-        if (followCamera == null)
+        if (followCamera == null && thirdPersonCamera == null)
         {
             followCamera = Camera.main.GetComponent<FollowCamera>();
-            if (followCamera == null)
+            thirdPersonCamera = Camera.main.GetComponent<ThirdPersonCamera>();
+
+            if (followCamera == null && thirdPersonCamera == null)
             {
-                Debug.LogError("Could not find FollowCamera on main camera! Please assign it in the inspector.");
+                Debug.LogError("Could not find camera controller on main camera! Please assign it in the inspector.");
             }
         }
 
@@ -343,20 +346,44 @@ public class OmnitrixController : MonoBehaviour
     // Set camera target with specific settings
     void SetCameraTarget(Transform target, float distance, float height)
     {
-        if (followCamera == null || target == null)
+        if (target == null)
         {
-            Debug.LogError("Cannot set camera target: Camera or target is null");
+            Debug.LogError("Cannot set camera target: Target is null");
             return;
         }
 
-        // Set the target in the camera
-        followCamera.target = target;
+        // Check which camera system is active
+        if (thirdPersonCamera != null)
+        {
+            // Use the new third-person camera
+            thirdPersonCamera.SetTarget(target);
 
-        // Directly set the distance and height values
-        followCamera.followDistance = distance;
-        followCamera.heightOffset = height;
+            // Set appropriate distance for the alien form
+            if (distance <= 3.5f)
+                thirdPersonCamera.SetCameraMode(ThirdPersonCamera.CameraMode.Close);
+            else if (distance >= 7.0f)
+                thirdPersonCamera.SetCameraMode(ThirdPersonCamera.CameraMode.Far);
+            else
+                thirdPersonCamera.SetCameraMode(ThirdPersonCamera.CameraMode.Medium);
 
-        Debug.Log($"Camera set to follow {target.name} at distance {distance} and height {height}");
+            // Reset camera position behind player
+            thirdPersonCamera.ResetRotation();
+
+            Debug.Log($"Third-person camera set to follow {target.name}");
+        }
+        else if (followCamera != null)
+        {
+            // Fall back to old camera system if new one isn't available
+            followCamera.target = target;
+            followCamera.followDistance = distance;
+            followCamera.heightOffset = height;
+
+            Debug.Log($"Legacy camera set to follow {target.name} at distance {distance} and height {height}");
+        }
+        else
+        {
+            Debug.LogError("No camera controller found!");
+        }
     }
 
     void DisableAllControllers()

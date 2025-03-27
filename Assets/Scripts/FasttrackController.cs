@@ -1,4 +1,3 @@
-// FasttrackController.cs - Attach to the Fasttrack model
 using UnityEngine;
 using System.Collections;
 
@@ -37,8 +36,10 @@ public class FasttrackController : MonoBehaviour
     public AudioClip speedBoostSound;
     public AudioClip dashSound;
 
-    [Header("References")]
+    [Header("Camera Settings")]
     public Transform cameraTarget;            // Empty object for camera to follow
+    public float cameraTurnInfluence = 0.7f;  // How much the camera affects movement direction (0-1)
+    public bool alignMovementWithCamera = true; // Move in camera's forward direction
 
     // Private variables
     private CharacterController controller;
@@ -161,15 +162,39 @@ public class FasttrackController : MonoBehaviour
         // Apply movement
         if (direction.magnitude >= 0.1f)
         {
-            // Calculate target angle for rotation (based on camera)
-            float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + mainCamera.eulerAngles.y;
+            Vector3 moveDir;
+            float targetAngle;
+
+            if (alignMovementWithCamera)
+            {
+                // Calculate target angle for rotation (based on camera)
+                targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + mainCamera.eulerAngles.y;
+
+                // Get camera-relative movement direction
+                moveDir = Quaternion.Euler(0f, mainCamera.eulerAngles.y, 0f) * Vector3.forward * vertical +
+                          Quaternion.Euler(0f, mainCamera.eulerAngles.y, 0f) * Vector3.right * horizontal;
+                moveDir.Normalize();
+            }
+            else
+            {
+                // Standard movement calculation
+                targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+                moveDir = direction;
+            }
+
+            // GTA-style camera behavior - partially blend between camera direction and character direction
+            if (cameraTurnInfluence > 0)
+            {
+                float cameraYaw = mainCamera.eulerAngles.y;
+                targetAngle = Mathf.LerpAngle(targetAngle, cameraYaw, cameraTurnInfluence);
+            }
 
             // Smooth rotation
             float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
             transform.rotation = Quaternion.Euler(0f, angle, 0f);
 
-            // Get movement direction
-            Vector3 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
+            // Get final movement direction
+            Vector3 finalMoveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
 
             // Set target speed based on input and super speed state
             float targetSpeed = walkSpeed;
@@ -183,7 +208,7 @@ public class FasttrackController : MonoBehaviour
             currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref speedSmoothVelocity, speedSmoothTime);
 
             // Move the character
-            controller.Move(moveDir.normalized * currentSpeed * Time.deltaTime);
+            controller.Move(finalMoveDir.normalized * currentSpeed * Time.deltaTime);
         }
         else
         {

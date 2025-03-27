@@ -2212,7 +2212,7 @@ MonoBehaviour:
     isOnCooldown: 0
     cooldownRemaining: 0
   transformationDuration: 1e+9
-  cycleAlienKey: 99
+  cycleAlienKey: 0
   transformKey: 116
   followCamera: {fileID: 330585548}
   thirdPersonCamera: {fileID: 0}

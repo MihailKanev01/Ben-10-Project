@@ -28,13 +28,26 @@ public class AlienSelectionButtonController : MonoBehaviour
     [SerializeField, Tooltip("Is this alien currently selected?")]
     private bool selected = false;
 
+    [Header("Omnitrix Swap Settings")]
+    [Tooltip("Is this the button for Ben Tennyson?")]
+    public bool isBenButton = false;
+
+    [Tooltip("Reference to Ben's button")]
+    public AlienSelectionButtonController benButton;
+
     // Reference to the animator component
     private Animator anim;
+
+    // Original icon before swapping
+    private Sprite originalIcon;
 
     void Start()
     {
         // Get reference to the Animator component
         anim = GetComponent<Animator>();
+
+        // Store the original icon
+        originalIcon = icon;
 
         // Check for missing references and log warnings
         if (itemSelected == null)
@@ -45,6 +58,20 @@ public class AlienSelectionButtonController : MonoBehaviour
         if (selectedAlien == null)
         {
             Debug.LogWarning("SelectedAlien image is not assigned on " + gameObject.name + ". Please assign it in the inspector.", this);
+        }
+
+        // Find Ben's button if not assigned
+        if (!isBenButton && benButton == null)
+        {
+            AlienSelectionButtonController[] buttons = FindObjectsOfType<AlienSelectionButtonController>();
+            foreach (var button in buttons)
+            {
+                if (button.isBenButton)
+                {
+                    benButton = button;
+                    break;
+                }
+            }
         }
     }
 
@@ -128,6 +155,60 @@ public class AlienSelectionButtonController : MonoBehaviour
         if (!selected && itemSelected != null)
         {
             itemSelected.text = "";
+        }
+    }
+
+    /// <summary>
+    /// Swaps this alien's icon with Ben's icon
+    /// </summary>
+    public void SwapWithBen()
+    {
+        if (benButton != null && !isBenButton)
+        {
+            // Swap icons
+            Sprite tempIcon = icon;
+            icon = benButton.originalIcon;
+            benButton.icon = tempIcon;
+
+            // Update display if this button is selected
+            if (selected)
+            {
+                if (selectedAlien != null)
+                {
+                    selectedAlien.sprite = icon;
+                }
+                if (itemSelected != null)
+                {
+                    itemSelected.text = alienName;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Restores this alien's original icon
+    /// </summary>
+    public void RestoreOriginalIcon()
+    {
+        icon = originalIcon;
+
+        // Update display if this button is selected
+        if (selected)
+        {
+            if (selectedAlien != null)
+            {
+                selectedAlien.sprite = icon;
+            }
+            if (itemSelected != null)
+            {
+                itemSelected.text = alienName;
+            }
+        }
+
+        // Also restore Ben's icon
+        if (benButton != null)
+        {
+            benButton.icon = benButton.originalIcon;
         }
     }
 }

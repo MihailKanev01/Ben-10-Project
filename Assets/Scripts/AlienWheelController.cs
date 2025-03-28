@@ -31,6 +31,13 @@ public class AlienWheelController : MonoBehaviour
     [Tooltip("Whether to show the cursor when the wheel is open")]
     public bool showCursorWhenWheelOpen = true;
 
+    [Header("Ben Tennyson Button")]
+    [Tooltip("Reference to Ben's button in the wheel")]
+    public AlienSelectionButtonController benButton;
+
+    [Tooltip("Reference to all alien buttons in the wheel")]
+    public AlienSelectionButtonController[] alienButtons;
+
     [Header("Runtime")]
     [SerializeField, Tooltip("Is the wheel currently open?")]
     public bool alienWheelSelected = false;
@@ -56,6 +63,25 @@ public class AlienWheelController : MonoBehaviour
         // Initialize cursor state
         previousCursorVisible = false;
         previousCursorLockState = CursorLockMode.Locked;
+
+        // Find all alien buttons if not assigned
+        if (alienButtons == null || alienButtons.Length == 0)
+        {
+            alienButtons = FindObjectsOfType<AlienSelectionButtonController>();
+        }
+
+        // Find Ben's button if not assigned
+        if (benButton == null)
+        {
+            foreach (var button in alienButtons)
+            {
+                if (button.isBenButton)
+                {
+                    benButton = button;
+                    break;
+                }
+            }
+        }
     }
 
     void Update()
@@ -202,5 +228,44 @@ public class AlienWheelController : MonoBehaviour
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
         Debug.Log("Cursor forcibly hidden and locked");
+    }
+
+    /// <summary>
+    /// Swaps the selected alien's icon with Ben's icon
+    /// </summary>
+    public void SwapAlienWithBen(int alienId)
+    {
+        if (alienId <= 0 || benButton == null)
+            return;
+
+        // Find the selected alien button
+        AlienSelectionButtonController selectedButton = null;
+        foreach (var button in alienButtons)
+        {
+            if (button.id == alienId && !button.isBenButton)
+            {
+                selectedButton = button;
+                break;
+            }
+        }
+
+        if (selectedButton != null)
+        {
+            selectedButton.SwapWithBen();
+        }
+    }
+
+    /// <summary>
+    /// Restores all aliens' original icons
+    /// </summary>
+    public void RestoreAllIcons()
+    {
+        foreach (var button in alienButtons)
+        {
+            if (!button.isBenButton)
+            {
+                button.RestoreOriginalIcon();
+            }
+        }
     }
 }

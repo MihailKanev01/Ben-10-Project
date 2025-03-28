@@ -1,4 +1,6 @@
 using UnityEngine;
+using System.Collections;
+using UnityEngine.UI;
 
 /// <summary>
 /// Connects the Alien Selection Wheel UI to your OmnitrixController
@@ -22,6 +24,13 @@ public class AlienWheelOmnitrixBridge : MonoBehaviour
 
     // Track the last selected ID to avoid repeated processing
     private int lastProcessedId = 0;
+
+    // Track when transformation is in progress
+    private bool transformationInProgress = false;
+
+    // Used to detect actual Ben button click
+    private int previousAlienId = -1;
+    private bool wheelJustOpened = false;
 
     void Start()
     {
@@ -47,6 +56,11 @@ public class AlienWheelOmnitrixBridge : MonoBehaviour
         // Initialize with no selection
         AlienWheelController.alienId = 0;
         lastProcessedId = 0;
+        transformationInProgress = false;
+        previousAlienId = -1;
+
+        // Disable Ben button in human form
+        UpdateBenButtonState();
 
         if (debugMode)
         {
@@ -61,61 +75,116 @@ public class AlienWheelOmnitrixBridge : MonoBehaviour
 
     void Update()
     {
-        // Check if an alien was selected from the wheel
+        // Check if wheel state changed
+        if (!wheelJustOpened && alienWheelController.alienWheelSelected)
+        {
+            wheelJustOpened = true;
+            UpdateBenButtonState();
+            previousAlienId = 0; // Reset when wheel opens
+        }
+        else if (wheelJustOpened && !alienWheelController.alienWheelSelected)
+        {
+            wheelJustOpened = false;
+        }
+
+        // Skip processing if a transformation is in progress
+        if (transformationInProgress)
+            return;
+
+        // Get the current selection from the wheel
         int selectedAlienId = AlienWheelController.alienId;
 
-        // Only process if the ID changed and is not zero
-        if (selectedAlienId > 0 && selectedAlienId != lastProcessedId)
+        // Only process when alien ID changes
+        if (selectedAlienId != previousAlienId)
         {
             if (debugMode)
-            {
-                Debug.Log($"New alien selected from wheel: ID = {selectedAlienId}");
-            }
+                Debug.Log($"Alien ID changed from {previousAlienId} to {selectedAlienId}");
 
-            // Convert the wheel's alien ID to your OmnitrixController's index
-            int omnitrixAlienIndex = selectedAlienId - 1;
-
-            if (debugMode)
-            {
-                Debug.Log($"Converting wheel ID {selectedAlienId} to Omnitrix index {omnitrixAlienIndex}");
-            }
-
-            // Make sure the index is valid
-            if (omnitrixAlienIndex >= 0 && omnitrixAlienIndex < omnitrixController.availableAliens.Count)
+            // Process Ben button selection (revert to human)
+            if (selectedAlienId == 0 && previousAlienId > 0 && omnitrixController.IsTransformed)
             {
                 if (debugMode)
-                {
-                    string alienName = omnitrixController.availableAliens[omnitrixAlienIndex].alienName;
-                    Debug.Log($"Attempting to transform into: {alienName} (index {omnitrixAlienIndex})");
-                }
+                    Debug.Log("Detected Ben button click, reverting to human form");
 
-                // Use the direct SendMessage method to cycle to and select the alien
-                StartCoroutine(SelectAndTransform(omnitrixAlienIndex));
+                // Revert to Ben
+                transformationInProgress = true;
+                StartCoroutine(RevertToBenCoroutine());
 
-                // Close the wheel if configured to do so
+                // Close wheel
                 if (closeWheelAfterSelection && alienWheelController != null)
                 {
-                    if (debugMode)
-                    {
-                        Debug.Log("Closing alien wheel...");
-                    }
-
                     alienWheelController.alienWheelSelected = false;
                     alienWheelController.anim.SetBool("openAlienWheel", false);
                     alienWheelController.CloseWheel();
                 }
             }
-            else
+            // Process alien selection (transform)
+            else if (selectedAlienId > 0 && selectedAlienId != lastProcessedId)
             {
-                Debug.LogError($"Invalid alien index: {omnitrixAlienIndex}. Available range: 0-{omnitrixController.availableAliens.Count - 1}");
+                ProcessAlienSelection(selectedAlienId);
             }
 
-            // Update the last processed ID
-            lastProcessedId = selectedAlienId;
-
-            // Reset the selection to avoid continuous transformation
-            AlienWheelController.alienId = 0;
+            // Update previous ID
+            previousAlienId = selectedAlienId;
         }
+    }
+
+    void ProcessAlienSelection(int selectedAlienId)
+    {
+        if (debugMode)
+        {
+            Debug.Log($"New alien selected from wheel: ID = {selectedAlienId}");
+        }
+
+        // Convert the wheel's alien ID to your OmnitrixController's index
+        int omnitrixAlienIndex = selectedAlienId - 1;
+
+        if (debugMode)
+        {
+            Debug.Log($"Converting wheel ID {selectedAlienId} to Omnitrix index {omnitrixAlienIndex}");
+        }
+
+        // Make sure the index is valid
+        if (omnitrixAlienIndex >= 0 && omnitrixAlienIndex < omnitrixController.availableAliens.Count)
+        {
+            if (debugMode)
+            {
+                string alienName = omnitrixController.availableAliens[omnitrixAlienIndex].alienName;
+                Debug.Log($"Attempting to transform into: {alienName} (index {omnitrixAlienIndex})");
+            }
+
+            // Set transformation in progress flag
+            transformationInProgress = true;
+
+            // Swap the icon in the wheel UI before transformation
+            if (alienWheelController != null)
+            {
+                alienWheelController.SwapAlienWithBen(selectedAlienId);
+            }
+
+            // Use the direct SendMessage method to cycle to and select the alien
+            StartCoroutine(SelectAndTransform(omnitrixAlienIndex));
+
+            // Close the wheel if configured to do so
+            if (closeWheelAfterSelection && alienWheelController != null)
+            {
+                if (debugMode)
+                {
+                    Debug.Log("Closing alien wheel...");
+                }
+
+                alienWheelController.alienWheelSelected = false;
+                alienWheelController.anim.SetBool("openAlienWheel", false);
+                alienWheelController.CloseWheel();
+            }
+        }
+        else
+        {
+            Debug.LogError($"Invalid alien index: {omnitrixAlienIndex}. Available range: 0-{omnitrixController.availableAliens.Count - 1}");
+        }
+
+        // Update the last processed ID
+        lastProcessedId = selectedAlienId;
     }
 
     /// <summary>
@@ -172,9 +241,105 @@ public class AlienWheelOmnitrixBridge : MonoBehaviour
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
 
+        // Update Ben button state for when wheel opens next
+        UpdateBenButtonState();
+
+        // Reset transformation flag after delay
+        yield return new WaitForSeconds(0.5f);
+        transformationInProgress = false;
+
         if (debugMode)
         {
             Debug.Log("Transformation sequence completed.");
+        }
+    }
+
+    /// <summary>
+    /// Coroutine to revert to Ben
+    /// </summary>
+    private System.Collections.IEnumerator RevertToBenCoroutine()
+    {
+        if (debugMode)
+        {
+            Debug.Log("Starting reversion to Ben");
+        }
+
+        // Restore all original icons
+        if (alienWheelController != null)
+        {
+            alienWheelController.RestoreAllIcons();
+        }
+
+        // Revert to Ben
+        omnitrixController.RevertToBen();
+
+        // Wait for reversion to complete
+        yield return new WaitForSeconds(0.5f);
+
+        // Update Ben button state for when wheel opens next
+        UpdateBenButtonState();
+
+        // Reset transformation flag
+        transformationInProgress = false;
+
+        // Reset processed ID
+        lastProcessedId = 0;
+
+        if (debugMode)
+        {
+            Debug.Log("Reversion to Ben completed");
+        }
+    }
+
+    /// <summary>
+    /// Method to revert to Ben directly
+    /// </summary>
+    public void RevertToBen()
+    {
+        if (omnitrixController.IsTransformed)
+        {
+            // Revert to Ben
+            omnitrixController.RevertToBen();
+
+            // Restore all original icons
+            if (alienWheelController != null)
+            {
+                alienWheelController.RestoreAllIcons();
+            }
+
+            // Update the last processed ID
+            lastProcessedId = 0;
+        }
+    }
+
+    /// <summary>
+    /// Updates the Ben button state (enabled/disabled)
+    /// </summary>
+    private void UpdateBenButtonState()
+    {
+        if (alienWheelController != null && alienWheelController.benButton != null)
+        {
+            // Get Ben's button
+            Button benButton = alienWheelController.benButton.GetComponent<Button>();
+            if (benButton != null)
+            {
+                // Only enable Ben button when transformed
+                bool isTransformed = omnitrixController.IsTransformed;
+                benButton.interactable = isTransformed;
+
+                // Visual feedback
+                if (benButton.image != null)
+                {
+                    Color color = benButton.image.color;
+                    color.a = isTransformed ? 1.0f : 0.5f;
+                    benButton.image.color = color;
+                }
+
+                if (debugMode)
+                {
+                    Debug.Log($"Ben button enabled: {isTransformed}");
+                }
+            }
         }
     }
 }

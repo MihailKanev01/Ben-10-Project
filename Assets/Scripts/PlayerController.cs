@@ -185,10 +185,10 @@ public class PlayerController : MonoBehaviour
             Debug.DrawRay(transform.position, Vector3.up * velocity.y * 0.05f,
                 velocity.y > 0 ? Color.green : Color.red, Time.deltaTime);
 
-            if (Mathf.Abs(velocity.y) > 1.0f)
-            {
-                Debug.Log($"Y velocity: {velocity.y:F2}");
-            }
+            //if (Mathf.Abs(velocity.y) > 1.0f)
+            //{
+            //    Debug.Log($"Y velocity: {velocity.y:F2}");
+            //}
         }
     }
 
@@ -198,10 +198,10 @@ public class PlayerController : MonoBehaviour
         {
             cameraTarget.position = new Vector3(transform.position.x, transform.position.y + 1.5f, transform.position.z);
         }
-        else if (debugJump)
-        {
-            Debug.LogWarning("Camera target is not assigned!");
-        }
+        //else if (debugJump)
+        //{
+        //    Debug.LogWarning("Camera target is not assigned!");
+        //}
     }
 
     public void SetControllerActive(bool active)

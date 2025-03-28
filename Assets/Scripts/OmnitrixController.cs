@@ -214,10 +214,13 @@ public class OmnitrixController : MonoBehaviour
         StartCoroutine(TransformationSequence(alienIndex));
     }
 
-    void RevertToBen()
+    public void RevertToBen()
     {
-        PlayTransformationEffects();
-        StartCoroutine(TransformationSequence(-1));
+        if (isTransformed)
+        {
+            PlayTransformationEffects();
+            StartCoroutine(TransformationSequence(-1));
+        }
     }
 
     IEnumerator QuickSwitch(int alienIndex)

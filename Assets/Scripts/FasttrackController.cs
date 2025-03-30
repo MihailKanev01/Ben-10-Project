@@ -1,11 +1,11 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 public class FasttrackController : MonoBehaviour
 {
     [Header("Movement Settings")]
     public float walkSpeed = 7.0f;
-    public float runSpeed = 15.0f;
     public float superSpeedMultiplier = 3.0f;
     public float turnSmoothTime = 0.1f;
     public float speedSmoothTime = 0.1f;
@@ -20,21 +20,27 @@ public class FasttrackController : MonoBehaviour
     public LayerMask groundMask;
 
     [Header("Speed Abilities")]
-    public float speedBoostDuration = 3.0f;
-    public float speedBoostCooldown = 5.0f;
-    public float dashDistance = 15.0f;
-    public float dashCooldown = 2.0f;
-    public KeyCode speedBoostKey = KeyCode.Q;
-    public KeyCode dashKey = KeyCode.E;
+    public KeyCode superSpeedKey = KeyCode.LeftShift;  // Key to activate super speed (default: Shift)
+
+    [Header("Slow Motion Settings")]
+    public KeyCode slowMotionKey = KeyCode.F;   // Keybind for toggling slow motion
+    public float slowMotionFactor = 0.2f;       // How slow everything else becomes (0.2 = 20% normal speed)
 
     [Header("Visual Effects")]
-    public TrailRenderer speedTrail;
-    public ParticleSystem speedBoostEffect;
-    public ParticleSystem dashEffect;
+    public List<TrailRenderer> speedTrails = new List<TrailRenderer>();   // Trail renderers to use
+    public float speedThreshold = 8.0f;         // Speed at which trails start to appear
+
+    [Header("Post-Processing")]
+    public MonoBehaviour postProcessVolume; // Reference to your Post Processing Volume component
+    public ScriptableObject normalProfile;  // Your normal profile asset
+    public ScriptableObject speedProfile;   // Your speed profile asset
+    public string profileFieldName = "profile"; // The name of the field to set (usually "profile")
 
     [Header("Audio")]
     public AudioClip speedBoostSound;
-    public AudioClip dashSound;
+    public AudioClip slowMotionActivateSound;   // Sound played when slow motion starts
+    public AudioClip slowMotionDeactivateSound; // Sound played when slow motion ends
+    public AudioClip slowMotionLoopSound;       // Ambient sound during slow motion
 
     [Header("Camera Settings")]
     public Transform cameraTarget;
@@ -50,18 +56,16 @@ public class FasttrackController : MonoBehaviour
     private bool isGrounded;
     private Transform mainCamera;
     private AudioSource audioSource;
+    private AudioSource slowMoAudioSource;      // Separate audio source for slow-mo effects
 
-    private float speedBoostCooldownRemaining = 0f;
-    private float dashCooldownRemaining = 0f;
     private bool isSuperSpeedActive = false;
-    private bool isDashing = false;
-    private float superSpeedTimeRemaining = 0f;
+    private bool isSlowMotionActive = false;
     private bool superSpeedSoundPlayed = false;
+    private float originalFixedDeltaTime;
 
     private int speedHash;
     private int jumpHash;
     private int groundedHash;
-    private int dashHash;
     private int superSpeedHash;
 
     void Start()
@@ -70,18 +74,24 @@ public class FasttrackController : MonoBehaviour
         animator = GetComponent<Animator>();
         mainCamera = Camera.main.transform;
         audioSource = GetComponent<AudioSource>();
+        originalFixedDeltaTime = Time.fixedDeltaTime;
 
         if (audioSource == null)
         {
             audioSource = gameObject.AddComponent<AudioSource>();
         }
 
+        // Create a separate audio source for slow-mo effects
+        slowMoAudioSource = gameObject.AddComponent<AudioSource>();
+        slowMoAudioSource.loop = true;
+        slowMoAudioSource.volume = 0.5f;
+        slowMoAudioSource.spatialBlend = 0f; // Pure 2D sound
+
         if (animator != null)
         {
             speedHash = Animator.StringToHash("Speed");
             jumpHash = Animator.StringToHash("Jump");
             groundedHash = Animator.StringToHash("Grounded");
-            dashHash = Animator.StringToHash("Dash");
             superSpeedHash = Animator.StringToHash("SuperSpeed");
         }
 
@@ -92,9 +102,11 @@ public class FasttrackController : MonoBehaviour
             groundCheck.localPosition = new Vector3(0, -0.9f, 0);
         }
 
-        if (speedTrail != null)
+        // For safety, disable all trails initially
+        foreach (TrailRenderer trail in speedTrails)
         {
-            speedTrail.emitting = false;
+            if (trail != null)
+                trail.emitting = false;
         }
     }
 
@@ -103,32 +115,15 @@ public class FasttrackController : MonoBehaviour
         if (controller == null || !controller.enabled)
             return;
 
-        UpdateCooldowns();
-
-        if (isDashing)
-            return;
-
         CheckGrounded();
         UpdateAnimator();
-        HandleSuperSpeed();
-        HandleDashAbility();
+        HandleSlowMotion();          // Slow motion handling
+        HandleSuperSpeed();          // Super speed handling
         ProcessMovement();
         HandleJumping();
         ApplyGravity();
         UpdateCameraTarget();
-    }
-
-    void UpdateCooldowns()
-    {
-        if (speedBoostCooldownRemaining > 0)
-        {
-            speedBoostCooldownRemaining -= Time.deltaTime;
-        }
-
-        if (dashCooldownRemaining > 0)
-        {
-            dashCooldownRemaining -= Time.deltaTime;
-        }
+        UpdateTrailEffects();        // Update trail effects based on speed
     }
 
     void CheckGrounded()
@@ -145,55 +140,59 @@ public class FasttrackController : MonoBehaviour
     {
         if (animator != null)
         {
-            animator.SetBool(groundedHash, isGrounded);
-
-            if (System.Array.Exists(animator.parameters, param => param.name == "SuperSpeed"))
+            // Check if parameters exist before setting them
+            if (HasParameter(animator, "SuperSpeed"))
             {
                 animator.SetBool(superSpeedHash, isSuperSpeedActive);
             }
+
+            if (HasParameter(animator, "Grounded"))
+            {
+                animator.SetBool(groundedHash, isGrounded);
+            }
+
+            // No need to set SlowMotion parameter since we don't have it
         }
     }
 
     void HandleSuperSpeed()
     {
-        bool canActivate = speedBoostCooldownRemaining <= 0;
+        bool superSpeedKeyPressed = Input.GetKey(superSpeedKey);
 
-        if (Input.GetKey(speedBoostKey) && canActivate)
+        // Simply activate/deactivate super speed based on key press
+        if (superSpeedKeyPressed && !isSuperSpeedActive)
         {
-            if (!isSuperSpeedActive)
-            {
-                ActivateSuperSpeed();
-            }
-
-            if (superSpeedTimeRemaining > 0)
-            {
-                superSpeedTimeRemaining -= Time.deltaTime;
-
-                if (superSpeedTimeRemaining <= 0)
-                {
-                    DeactivateSuperSpeed();
-                }
-            }
+            ActivateSuperSpeed();
         }
-        else if (isSuperSpeedActive)
+        else if (!superSpeedKeyPressed && isSuperSpeedActive)
         {
             DeactivateSuperSpeed();
         }
     }
 
-    void HandleDashAbility()
+    // Method to handle slow motion as a toggle
+    void HandleSlowMotion()
     {
-        if (Input.GetKeyDown(dashKey) && dashCooldownRemaining <= 0 && isGrounded)
+        if (Input.GetKeyDown(slowMotionKey))
         {
-            StartCoroutine(PerformDash());
+            // Toggle slow motion on/off
+            if (isSlowMotionActive)
+            {
+                DeactivateSlowMotion();
+            }
+            else
+            {
+                ActivateSlowMotion();
+            }
         }
     }
+
+    // Update your ProcessMovement method in the FasttrackController script:
 
     void ProcessMovement()
     {
         float horizontal = Input.GetAxisRaw("Horizontal");
         float vertical = Input.GetAxisRaw("Vertical");
-        bool running = Input.GetKey(KeyCode.LeftShift);
         Vector3 direction = new Vector3(horizontal, 0f, vertical).normalized;
 
         if (direction.magnitude >= 0.1f)
@@ -220,27 +219,99 @@ public class FasttrackController : MonoBehaviour
                 targetAngle = Mathf.LerpAngle(targetAngle, cameraYaw, cameraTurnInfluence);
             }
 
-            float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
+            // Adjust rotation smoothing based on time scale
+            float actualTurnSmoothTime = turnSmoothTime;
+            if (isSlowMotionActive)
+            {
+                // Make rotation much faster during slow motion
+                actualTurnSmoothTime = turnSmoothTime * 0.1f;
+            }
+
+            // Use angle smoothing with adjusted smooth time
+            float angle = Mathf.SmoothDampAngle(
+                transform.eulerAngles.y,
+                targetAngle,
+                ref turnSmoothVelocity,
+                actualTurnSmoothTime,
+                Mathf.Infinity,
+                isSlowMotionActive ? Time.unscaledDeltaTime : Time.deltaTime  // Use unscaledDeltaTime in slow motion
+            );
+
             transform.rotation = Quaternion.Euler(0f, angle, 0f);
 
             Vector3 finalMoveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
             float targetSpeed = walkSpeed;
 
-            if (running) targetSpeed = runSpeed;
-            if (isSuperSpeedActive) targetSpeed *= superSpeedMultiplier;
+            // Apply super speed multiplier if active
+            if (isSuperSpeedActive)
+            {
+                targetSpeed *= superSpeedMultiplier;
+            }
+
+            // Additional speed boost during slow motion to make Fasttrack appear faster
+            if (isSlowMotionActive) targetSpeed *= (1f / slowMotionFactor);
 
             targetSpeed *= direction.magnitude;
-            currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref speedSmoothVelocity, speedSmoothTime);
+
+            // Use different smoothing for speed based on time scale
+            if (isSlowMotionActive)
+            {
+                // Use a much smaller smooth time for quicker response in slow motion
+                currentSpeed = Mathf.SmoothDamp(
+                    currentSpeed,
+                    targetSpeed,
+                    ref speedSmoothVelocity,
+                    speedSmoothTime * 0.1f,
+                    Mathf.Infinity,
+                    Time.unscaledDeltaTime
+                );
+            }
+            else
+            {
+                // Normal behavior when not in slow motion
+                currentSpeed = Mathf.SmoothDamp(
+                    currentSpeed,
+                    targetSpeed,
+                    ref speedSmoothVelocity,
+                    speedSmoothTime
+                );
+            }
+
             controller.Move(finalMoveDir.normalized * currentSpeed * Time.deltaTime);
         }
         else
         {
-            currentSpeed = Mathf.SmoothDamp(currentSpeed, 0, ref speedSmoothVelocity, speedSmoothTime);
+            // Handle stopping in slow motion too
+            if (isSlowMotionActive)
+            {
+                currentSpeed = Mathf.SmoothDamp(
+                    currentSpeed,
+                    0,
+                    ref speedSmoothVelocity,
+                    speedSmoothTime * 0.1f,
+                    Mathf.Infinity,
+                    Time.unscaledDeltaTime
+                );
+            }
+            else
+            {
+                currentSpeed = Mathf.SmoothDamp(currentSpeed, 0, ref speedSmoothVelocity, speedSmoothTime);
+            }
         }
 
         if (animator != null)
         {
-            animator.SetFloat(speedHash, currentSpeed);
+            // When in slow motion, compensate the animator speed
+            if (isSlowMotionActive)
+            {
+                animator.SetFloat(speedHash, currentSpeed * slowMotionFactor);
+                animator.speed = 1f / slowMotionFactor; // Make animations run at normal speed
+            }
+            else
+            {
+                animator.SetFloat(speedHash, currentSpeed);
+                animator.speed = 1f; // Normal animation speed
+            }
         }
     }
 
@@ -277,23 +348,14 @@ public class FasttrackController : MonoBehaviour
     void ActivateSuperSpeed()
     {
         isSuperSpeedActive = true;
-        superSpeedTimeRemaining = speedBoostDuration;
-
-        if (speedTrail != null)
-        {
-            speedTrail.emitting = true;
-        }
-
-        if (speedBoostEffect != null)
-        {
-            speedBoostEffect.Play();
-        }
 
         if (audioSource != null && speedBoostSound != null && !superSpeedSoundPlayed)
         {
             audioSource.PlayOneShot(speedBoostSound);
             superSpeedSoundPlayed = true;
         }
+
+        // REMOVED: No longer change post-processing profile for super speed
 
         Debug.Log("Fasttrack: Super Speed activated!");
     }
@@ -303,74 +365,84 @@ public class FasttrackController : MonoBehaviour
         isSuperSpeedActive = false;
         superSpeedSoundPlayed = false;
 
-        if (speedTrail != null)
-        {
-            speedTrail.emitting = false;
-        }
+        // REMOVED: No longer restore post-processing profile for super speed
 
-        if (speedBoostEffect != null)
-        {
-            speedBoostEffect.Stop();
-        }
-
-        speedBoostCooldownRemaining = speedBoostCooldown;
-
-        Debug.Log("Fasttrack: Super Speed deactivated. Cooldown started.");
+        Debug.Log("Fasttrack: Super Speed deactivated.");
     }
 
-    IEnumerator PerformDash()
+    void ActivateSlowMotion()
     {
-        isDashing = true;
+        isSlowMotionActive = true;
 
-        if (animator != null && System.Array.Exists(animator.parameters, param => param.name == "Dash"))
+        // Slow down game time
+        Time.timeScale = slowMotionFactor;
+        Time.fixedDeltaTime = originalFixedDeltaTime * slowMotionFactor;
+
+        // Play slow motion sound
+        if (audioSource != null && slowMotionActivateSound != null)
         {
-            animator.SetTrigger(dashHash);
+            audioSource.PlayOneShot(slowMotionActivateSound);
         }
 
-        if (dashEffect != null)
+        // Play slow motion loop sound
+        if (slowMoAudioSource != null && slowMotionLoopSound != null)
         {
-            dashEffect.Play();
+            slowMoAudioSource.clip = slowMotionLoopSound;
+            slowMoAudioSource.Play();
         }
 
-        if (audioSource != null && dashSound != null)
+        // Apply post-processing profile for slow motion
+        if (postProcessVolume != null && speedProfile != null)
         {
-            audioSource.PlayOneShot(dashSound);
+            SetPostProcessingProfile(speedProfile);
         }
 
-        Vector3 startPosition = transform.position;
-        Vector3 dashDirection = transform.forward;
-        Vector3 targetPosition = startPosition + dashDirection * dashDistance;
+        Debug.Log("Fasttrack: Slow Motion activated!");
+    }
 
-        RaycastHit hit;
-        if (Physics.Raycast(startPosition, dashDirection, out hit, dashDistance, groundMask))
+    void DeactivateSlowMotion()
+    {
+        isSlowMotionActive = false;
+
+        // Restore normal game time
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = originalFixedDeltaTime;
+
+        // Play deactivation sound
+        if (audioSource != null && slowMotionDeactivateSound != null)
         {
-            targetPosition = hit.point - (dashDirection * controller.radius);
+            audioSource.PlayOneShot(slowMotionDeactivateSound);
         }
 
-        float dashDuration = 0.2f;
-        float elapsedTime = 0;
-
-        while (elapsedTime < dashDuration)
+        // Stop loop sound
+        if (slowMoAudioSource != null)
         {
-            float t = elapsedTime / dashDuration;
-            t = t * t * (3f - 2f * t);
-
-            controller.enabled = false;
-            transform.position = Vector3.Lerp(startPosition, targetPosition, t);
-            controller.enabled = true;
-
-            elapsedTime += Time.deltaTime;
-            yield return null;
+            slowMoAudioSource.Stop();
         }
 
-        controller.enabled = false;
-        transform.position = targetPosition;
-        controller.enabled = true;
+        // Restore normal post-processing profile
+        if (postProcessVolume != null && normalProfile != null)
+        {
+            SetPostProcessingProfile(normalProfile);
+        }
 
-        dashCooldownRemaining = dashCooldown;
-        isDashing = false;
+        Debug.Log("Fasttrack: Slow Motion deactivated.");
+    }
 
-        Debug.Log("Fasttrack: Dash completed!");
+    void UpdateTrailEffects()
+    {
+        // Direct trail control - just turn them on/off based on current state
+        foreach (TrailRenderer trail in speedTrails)
+        {
+            if (trail != null)
+            {
+                // Simple condition: super speed OR above threshold OR slow motion
+                bool shouldEmit = isSuperSpeedActive || currentSpeed > speedThreshold || isSlowMotionActive;
+
+                // Set the emission directly
+                trail.emitting = shouldEmit;
+            }
+        }
     }
 
     public void SetControllerActive(bool active)
@@ -380,6 +452,23 @@ public class FasttrackController : MonoBehaviour
         {
             controller.enabled = active;
         }
+
+        // If deactivating, make sure to reset time scale
+        if (!active && isSlowMotionActive)
+        {
+            Time.timeScale = 1f;
+            Time.fixedDeltaTime = originalFixedDeltaTime;
+            isSlowMotionActive = false;
+        }
+
+        // Directly disable all trails
+        foreach (TrailRenderer trail in speedTrails)
+        {
+            if (trail != null)
+                trail.emitting = false;
+        }
+
+        if (slowMoAudioSource != null) slowMoAudioSource.Stop();
     }
 
     void OnDrawGizmosSelected()
@@ -391,6 +480,55 @@ public class FasttrackController : MonoBehaviour
         }
 
         Gizmos.color = Color.blue;
-        Gizmos.DrawRay(transform.position, transform.forward * dashDistance);
+        Gizmos.DrawRay(transform.position, transform.forward * 5f);
+    }
+
+    // For safety, ensure time scale is reset if script is disabled
+    void OnDisable()
+    {
+        if (isSlowMotionActive)
+        {
+            Time.timeScale = 1f;
+            Time.fixedDeltaTime = originalFixedDeltaTime;
+        }
+    }
+
+    // Helper method to check if an animator has a parameter
+    bool HasParameter(Animator animator, string paramName)
+    {
+        foreach (AnimatorControllerParameter param in animator.parameters)
+        {
+            if (param.name == paramName)
+                return true;
+        }
+        return false;
+    }
+
+    // Helper method to set the post-processing profile using reflection
+    // This works with any version of Post Processing Stack
+    void SetPostProcessingProfile(ScriptableObject profile)
+    {
+        if (postProcessVolume == null || profile == null)
+            return;
+
+        System.Type volumeType = postProcessVolume.GetType();
+        System.Reflection.FieldInfo fieldInfo = volumeType.GetField(profileFieldName);
+
+        if (fieldInfo != null)
+        {
+            fieldInfo.SetValue(postProcessVolume, profile);
+        }
+        else
+        {
+            System.Reflection.PropertyInfo propertyInfo = volumeType.GetProperty(profileFieldName);
+            if (propertyInfo != null)
+            {
+                propertyInfo.SetValue(postProcessVolume, profile);
+            }
+            else
+            {
+                Debug.LogWarning("Could not find a profile field or property on the post-processing volume");
+            }
+        }
     }
 }

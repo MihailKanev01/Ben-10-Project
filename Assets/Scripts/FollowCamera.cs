@@ -68,8 +68,10 @@ public class FollowCamera : MonoBehaviour
     {
         if (Cursor.lockState == CursorLockMode.Locked)
         {
-            float mouseX = Input.GetAxis("Mouse X") * rotationSpeed;
-            float mouseY = Input.GetAxis("Mouse Y") * rotationSpeed;
+            // Use unscaledDeltaTime for mouse input in slow motion to maintain responsiveness
+            float timeMultiplier = Time.timeScale < 0.9f ? 1f / Time.timeScale : 1f;
+            float mouseX = Input.GetAxis("Mouse X") * rotationSpeed * timeMultiplier;
+            float mouseY = Input.GetAxis("Mouse Y") * rotationSpeed * timeMultiplier;
 
             currentYaw += mouseX;
             currentPitch -= mouseY;
@@ -82,12 +84,29 @@ public class FollowCamera : MonoBehaviour
         Vector3 targetPosition = CalculateIdealPosition();
         targetPosition = HandleCameraCollision(targetPosition);
 
-        transform.position = Vector3.SmoothDamp(
-            transform.position,
-            targetPosition,
-            ref currentVelocity,
-            1.0f / followSpeed
-        );
+        // Check if we're in slow motion (timeScale < 0.9)
+        if (Time.timeScale < 0.9f)
+        {
+            // Use unscaledDeltaTime for consistent camera movement during slow motion
+            transform.position = Vector3.SmoothDamp(
+                transform.position,
+                targetPosition,
+                ref currentVelocity,
+                1.0f / followSpeed,
+                Mathf.Infinity,
+                Time.unscaledDeltaTime
+            );
+        }
+        else
+        {
+            // Normal behavior when not in slow motion
+            transform.position = Vector3.SmoothDamp(
+                transform.position,
+                targetPosition,
+                ref currentVelocity,
+                1.0f / followSpeed
+            );
+        }
 
         transform.LookAt(target.position + Vector3.up * heightOffset);
     }

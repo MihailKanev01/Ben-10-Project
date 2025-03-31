@@ -48,6 +48,22 @@ public class OmnitrixController : MonoBehaviour
     public AudioClip transformationSound;
     public Light omnitrixFlash;
 
+    [Header("Green Flash Effects")]
+    public ParticleSystem greenFlashParticleSystem;
+    public float flashOffset = 1.0f;
+    public Light greenFlashLight;
+    public float lightIntensity = 8f;
+    public float lightDuration = 0.5f;
+    public Camera mainCamera;
+    public bool addCameraShake = true;
+    public float shakeIntensity = 0.1f;
+    public float shakeDuration = 0.3f;
+
+    [Header("Screen Flash")]
+    public UnityEngine.UI.Image screenFlashImage;
+    public float screenFlashDuration = 0.3f;
+    public float maxScreenFlashAlpha = 0.5f;
+
     private bool isTransformed = false;
     private float transformationTimeRemaining = 0f;
     private AudioSource audioSource;
@@ -78,6 +94,18 @@ public class OmnitrixController : MonoBehaviour
             {
                 Debug.LogError("Could not find camera controller on main camera! Please assign it in the inspector.");
             }
+        }
+
+        if (mainCamera == null)
+        {
+            mainCamera = Camera.main;
+        }
+
+        // Set up screen flash image if one was provided
+        if (screenFlashImage != null)
+        {
+            screenFlashImage.gameObject.SetActive(false);
+            screenFlashImage.color = new Color(0, 1, 0, 0); // Start transparent
         }
     }
 
@@ -393,17 +421,58 @@ public class OmnitrixController : MonoBehaviour
 
     void PlayTransformationEffects()
     {
+        // Get current position
+        Vector3 currentPosition = GetCurrentPosition();
+
+        // Add height offset
+        Vector3 flashPosition = currentPosition + Vector3.up * flashOffset;
+
+        // Play original transformation effect if available
         if (transformationEffect != null)
         {
-            transformationEffect.transform.position = GetCurrentPosition() + Vector3.up;
+            transformationEffect.transform.position = flashPosition;
             transformationEffect.Play();
         }
 
+        // Play sound effect
         if (audioSource != null && transformationSound != null)
         {
             audioSource.PlayOneShot(transformationSound);
         }
 
+        // Play green flash particle system
+        if (greenFlashParticleSystem != null)
+        {
+            greenFlashParticleSystem.transform.position = flashPosition;
+            greenFlashParticleSystem.Play();
+
+            // Activate all child particle systems
+            foreach (ParticleSystem childSystem in greenFlashParticleSystem.GetComponentsInChildren<ParticleSystem>())
+            {
+                if (childSystem != greenFlashParticleSystem)
+                    childSystem.Play();
+            }
+        }
+
+        // Camera shake effect
+        if (addCameraShake && mainCamera != null)
+        {
+            StartCoroutine(ShakeCamera(shakeDuration, shakeIntensity));
+        }
+
+        // Screen flash effect
+        if (screenFlashImage != null)
+        {
+            StartCoroutine(ScreenFlash(screenFlashDuration));
+        }
+
+        // Green flash light effect
+        if (greenFlashLight != null)
+        {
+            StartCoroutine(FlashLightEffect(flashPosition));
+        }
+
+        // Original omnitrix flash
         if (omnitrixFlash != null)
         {
             StartCoroutine(FlashOmnitrix());
@@ -415,6 +484,92 @@ public class OmnitrixController : MonoBehaviour
         omnitrixFlash.enabled = true;
         yield return new WaitForSeconds(0.2f);
         omnitrixFlash.enabled = false;
+    }
+
+    IEnumerator FlashLightEffect(Vector3 position)
+    {
+        greenFlashLight.transform.position = position;
+        greenFlashLight.color = new Color(0.0f, 1.0f, 0.0f);
+        greenFlashLight.intensity = 0;
+        greenFlashLight.enabled = true;
+
+        // Ramp up
+        float timer = 0;
+        float rampUpDuration = lightDuration * 0.3f;
+        while (timer < rampUpDuration)
+        {
+            timer += Time.deltaTime;
+            greenFlashLight.intensity = Mathf.Lerp(0, lightIntensity, timer / rampUpDuration);
+            yield return null;
+        }
+
+        // Hold at peak
+        yield return new WaitForSeconds(lightDuration * 0.4f);
+
+        // Ramp down
+        timer = 0;
+        float rampDownDuration = lightDuration * 0.3f;
+        while (timer < rampDownDuration)
+        {
+            timer += Time.deltaTime;
+            greenFlashLight.intensity = Mathf.Lerp(lightIntensity, 0, timer / rampDownDuration);
+            yield return null;
+        }
+
+        greenFlashLight.enabled = false;
+    }
+
+    IEnumerator ShakeCamera(float duration, float magnitude)
+    {
+        Vector3 originalPosition = mainCamera.transform.localPosition;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            float x = Random.Range(-1f, 1f) * magnitude;
+            float y = Random.Range(-1f, 1f) * magnitude;
+
+            mainCamera.transform.localPosition = new Vector3(x, y, originalPosition.z);
+
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        mainCamera.transform.localPosition = originalPosition;
+    }
+
+    IEnumerator ScreenFlash(float duration)
+    {
+        screenFlashImage.gameObject.SetActive(true);
+        Color flashColor = new Color(0, 1, 0, 0); // Start transparent
+        screenFlashImage.color = flashColor;
+
+        // Fade in
+        float elapsed = 0;
+        float fadeInTime = duration * 0.3f;
+        while (elapsed < fadeInTime)
+        {
+            elapsed += Time.deltaTime;
+            float alpha = Mathf.Lerp(0, maxScreenFlashAlpha, elapsed / fadeInTime);
+            screenFlashImage.color = new Color(0, 1, 0, alpha);
+            yield return null;
+        }
+
+        // Hold
+        yield return new WaitForSeconds(duration * 0.4f);
+
+        // Fade out
+        elapsed = 0;
+        float fadeOutTime = duration * 0.3f;
+        while (elapsed < fadeOutTime)
+        {
+            elapsed += Time.deltaTime;
+            float alpha = Mathf.Lerp(maxScreenFlashAlpha, 0, elapsed / fadeOutTime);
+            screenFlashImage.color = new Color(0, 1, 0, alpha);
+            yield return null;
+        }
+
+        screenFlashImage.gameObject.SetActive(false);
     }
 
     public bool IsTransformed { get { return isTransformed; } }
@@ -446,6 +601,11 @@ public class OmnitrixController : MonoBehaviour
         return "Unknown Alien";
     }
 
+    public int GetSelectedAlienIndex()
+    {
+        return selectedAlienIndex;
+    }
+
     public bool IsAlienOnCooldown(int alienIndex)
     {
         if (alienIndex < 0 || alienIndex >= availableAliens.Count)
@@ -463,11 +623,6 @@ public class OmnitrixController : MonoBehaviour
             return 0f;
 
         return availableAliens[alienIndex].cooldownRemaining / availableAliens[alienIndex].transformationCooldown;
-    }
-
-    public int GetSelectedAlienIndex()
-    {
-        return selectedAlienIndex;
     }
 
     public void TransformPressed()

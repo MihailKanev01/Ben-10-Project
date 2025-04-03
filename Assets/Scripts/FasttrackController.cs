@@ -11,41 +11,42 @@ public class FasttrackController : MonoBehaviour
     public float speedSmoothTime = 0.1f;
 
     [Header("Jump Settings")]
-    public float jumpForce = 10.0f;
+    public float jumpForce = 15.0f; // INCREASED from 10.0f
     public float gravity = -25.0f;
 
     [Header("Ground Check")]
     public Transform groundCheck;
-    public float groundDistance = 0.4f;
-    public LayerMask groundMask;
+    public float groundDistance = 1.0f; // INCREASED from 0.4f for better detection
+    public LayerMask groundMask = -1;   // Default to Everything
 
     [Header("Speed Abilities")]
-    public KeyCode superSpeedKey = KeyCode.LeftShift;  // Key to activate super speed (default: Shift)
-
-    [Header("Slow Motion Settings")]
-    public KeyCode slowMotionKey = KeyCode.F;   // Keybind for toggling slow motion
-    public float slowMotionFactor = 0.2f;       // How slow everything else becomes (0.2 = 20% normal speed)
+    public KeyCode superSpeedKey = KeyCode.LeftShift;
+    public KeyCode slowMotionKey = KeyCode.F;
+    public float slowMotionFactor = 0.2f;
 
     [Header("Visual Effects")]
-    public List<TrailRenderer> speedTrails = new List<TrailRenderer>();   // Trail renderers to use
-    public float speedThreshold = 8.0f;         // Speed at which trails start to appear
+    public List<TrailRenderer> speedTrails = new List<TrailRenderer>();
+    public float speedThreshold = 8.0f;
 
     [Header("Post-Processing")]
-    public MonoBehaviour postProcessVolume; // Reference to your Post Processing Volume component
-    public ScriptableObject normalProfile;  // Your normal profile asset
-    public ScriptableObject speedProfile;   // Your speed profile asset
-    public string profileFieldName = "profile"; // The name of the field to set (usually "profile")
+    public MonoBehaviour postProcessVolume;
+    public ScriptableObject normalProfile;
+    public ScriptableObject speedProfile;
+    public string profileFieldName = "profile";
 
     [Header("Audio")]
     public AudioClip speedBoostSound;
-    public AudioClip slowMotionActivateSound;   // Sound played when slow motion starts
-    public AudioClip slowMotionDeactivateSound; // Sound played when slow motion ends
-    public AudioClip slowMotionLoopSound;       // Ambient sound during slow motion
+    public AudioClip slowMotionActivateSound;
+    public AudioClip slowMotionDeactivateSound;
+    public AudioClip slowMotionLoopSound;
 
     [Header("Camera Settings")]
     public Transform cameraTarget;
     public float cameraTurnInfluence = 0.7f;
     public bool alignMovementWithCamera = true;
+
+    [Header("Debug")]
+    public bool showDebugVisuals = true;
 
     private CharacterController controller;
     private Animator animator;
@@ -56,7 +57,7 @@ public class FasttrackController : MonoBehaviour
     private bool isGrounded;
     private Transform mainCamera;
     private AudioSource audioSource;
-    private AudioSource slowMoAudioSource;      // Separate audio source for slow-mo effects
+    private AudioSource slowMoAudioSource;
 
     private bool isSuperSpeedActive = false;
     private bool isSlowMotionActive = false;
@@ -99,7 +100,15 @@ public class FasttrackController : MonoBehaviour
         {
             groundCheck = new GameObject("FasttrackGroundCheck").transform;
             groundCheck.SetParent(transform);
-            groundCheck.localPosition = new Vector3(0, -0.9f, 0);
+            groundCheck.localPosition = new Vector3(0, -1.5f, 0); // LOWERED for better ground detection
+            Debug.Log("Created ground check at -1.5 height");
+        }
+
+        // Set ground mask to Everything if not specified
+        if (groundMask.value == 0)
+        {
+            groundMask = ~0; // Everything
+            Debug.Log("Ground mask was 0, set to Everything layer");
         }
 
         // For safety, disable all trails initially
@@ -108,6 +117,10 @@ public class FasttrackController : MonoBehaviour
             if (trail != null)
                 trail.emitting = false;
         }
+
+        // Debug info at startup
+        Debug.Log($"Character controller: height={controller.height}, radius={controller.radius}, center={controller.center}");
+        Debug.Log($"Ground check at: {groundCheck.position}, using mask: {groundMask.value}");
     }
 
     void Update()
@@ -115,21 +128,45 @@ public class FasttrackController : MonoBehaviour
         if (controller == null || !controller.enabled)
             return;
 
-        CheckGrounded();
+        // Check ground status using multiple methods
+        CheckGroundedMultiMethod();
+
+        // Show debug visuals
+        if (showDebugVisuals)
+        {
+            Debug.DrawRay(groundCheck.position, Vector3.down * groundDistance, isGrounded ? Color.green : Color.red);
+
+            if (Input.GetKeyDown(KeyCode.Space))
+            {
+                Debug.Log($"SPACE pressed! isGrounded={isGrounded}, velocity.y={velocity.y}");
+            }
+        }
+
         UpdateAnimator();
-        HandleSlowMotion();          // Slow motion handling
-        HandleSuperSpeed();          // Super speed handling
+        HandleSlowMotion();
+        HandleSuperSpeed();
         ProcessMovement();
         HandleJumping();
         ApplyGravity();
         UpdateCameraTarget();
-        UpdateTrailEffects();        // Update trail effects based on speed
+        UpdateTrailEffects();
     }
 
-    void CheckGrounded()
+    void CheckGroundedMultiMethod()
     {
-        isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundMask);
+        // Method 1: Original sphere cast
+        bool sphereGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundMask);
 
+        // Method 2: Raycast down
+        bool rayGrounded = Physics.Raycast(groundCheck.position, Vector3.down, groundDistance * 1.5f, groundMask);
+
+        // Method 3: Character controller's built-in check
+        bool controllerGrounded = controller.isGrounded;
+
+        // Combine methods for maximum reliability
+        isGrounded = sphereGrounded || rayGrounded || controllerGrounded;
+
+        // Reset velocity when grounded
         if (isGrounded && velocity.y < 0)
         {
             velocity.y = -2f;
@@ -150,8 +187,6 @@ public class FasttrackController : MonoBehaviour
             {
                 animator.SetBool(groundedHash, isGrounded);
             }
-
-            // No need to set SlowMotion parameter since we don't have it
         }
     }
 
@@ -170,7 +205,6 @@ public class FasttrackController : MonoBehaviour
         }
     }
 
-    // Method to handle slow motion as a toggle
     void HandleSlowMotion()
     {
         if (Input.GetKeyDown(slowMotionKey))
@@ -186,8 +220,6 @@ public class FasttrackController : MonoBehaviour
             }
         }
     }
-
-    // Update your ProcessMovement method in the FasttrackController script:
 
     void ProcessMovement()
     {
@@ -234,7 +266,7 @@ public class FasttrackController : MonoBehaviour
                 ref turnSmoothVelocity,
                 actualTurnSmoothTime,
                 Mathf.Infinity,
-                isSlowMotionActive ? Time.unscaledDeltaTime : Time.deltaTime  // Use unscaledDeltaTime in slow motion
+                isSlowMotionActive ? Time.unscaledDeltaTime : Time.deltaTime
             );
 
             transform.rotation = Quaternion.Euler(0f, angle, 0f);
@@ -317,24 +349,46 @@ public class FasttrackController : MonoBehaviour
 
     void HandleJumping()
     {
-        if (Input.GetButtonDown("Jump") && isGrounded)
+        // Use both input methods for better detection
+        bool jumpPressed = Input.GetButtonDown("Jump") || Input.GetKeyDown(KeyCode.Space);
+
+        if (jumpPressed && isGrounded)
         {
+            // Calculate jump velocity with a slight boost
             float jumpVelocity = Mathf.Sqrt(jumpForce * -2f * gravity);
             velocity.y = jumpVelocity;
+
+            Debug.Log($"FASTTRACK JUMP! Velocity={jumpVelocity}");
 
             if (animator != null)
             {
                 animator.SetTrigger(jumpHash);
             }
 
+            // Force grounded state update
             isGrounded = false;
         }
     }
 
     void ApplyGravity()
     {
+        // Apply gravity
         velocity.y += gravity * Time.deltaTime;
-        controller.Move(velocity * Time.deltaTime);
+
+        // Limit terminal velocity
+        if (velocity.y < -30f)
+            velocity.y = -30f;
+
+        // Apply vertical movement
+        Vector3 verticalMovement = new Vector3(0, velocity.y, 0) * Time.deltaTime;
+        controller.Move(verticalMovement);
+
+        // Debug visualize
+        if (showDebugVisuals && Mathf.Abs(velocity.y) > 2)
+        {
+            Debug.DrawRay(transform.position, Vector3.up * velocity.y * 0.1f,
+                velocity.y > 0 ? Color.green : Color.red);
+        }
     }
 
     void UpdateCameraTarget()
@@ -355,8 +409,6 @@ public class FasttrackController : MonoBehaviour
             superSpeedSoundPlayed = true;
         }
 
-        // REMOVED: No longer change post-processing profile for super speed
-
         Debug.Log("Fasttrack: Super Speed activated!");
     }
 
@@ -364,8 +416,6 @@ public class FasttrackController : MonoBehaviour
     {
         isSuperSpeedActive = false;
         superSpeedSoundPlayed = false;
-
-        // REMOVED: No longer restore post-processing profile for super speed
 
         Debug.Log("Fasttrack: Super Speed deactivated.");
     }
@@ -471,12 +521,17 @@ public class FasttrackController : MonoBehaviour
         if (slowMoAudioSource != null) slowMoAudioSource.Stop();
     }
 
-    void OnDrawGizmosSelected()
+    void OnDrawGizmos()
     {
         if (groundCheck != null)
         {
+            // Always show ground check
             Gizmos.color = Color.yellow;
             Gizmos.DrawWireSphere(groundCheck.position, groundDistance);
+
+            // Show raycast
+            Gizmos.color = Color.blue;
+            Gizmos.DrawLine(groundCheck.position, groundCheck.position + Vector3.down * groundDistance * 1.5f);
         }
 
         Gizmos.color = Color.blue;
@@ -505,7 +560,6 @@ public class FasttrackController : MonoBehaviour
     }
 
     // Helper method to set the post-processing profile using reflection
-    // This works with any version of Post Processing Stack
     void SetPostProcessingProfile(ScriptableObject profile)
     {
         if (postProcessVolume == null || profile == null)

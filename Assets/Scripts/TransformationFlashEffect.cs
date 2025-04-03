@@ -14,14 +14,14 @@ public class TransformationFlashEffect : MonoBehaviour
     [Header("Light Settings")]
     public Light flashLight;
     public float maxLightIntensity = 8f;
-    public float lightDuration = 0.5f;
+    public float lightDuration = 2.5f;  // INCREASED from 0.5f to 2.5f
     public AnimationCurve lightIntensityCurve = AnimationCurve.EaseInOut(0, 0, 1, 0);
 
     [Header("Color Settings")]
     public Color flashColor = new Color(0.0f, 1.0f, 0.2f); // Slightly blue-green like Omnitrix
 
     [Header("Effect Settings")]
-    public float effectDuration = 1.5f;
+    public float effectDuration = 5.0f;  // INCREASED from 1.5f to 5.0f
     public float effectScale = 1.0f;
 
     private bool isPlaying = false;
@@ -56,11 +56,18 @@ public class TransformationFlashEffect : MonoBehaviour
         // Set the scale of the effect
         transform.localScale = Vector3.one * effectScale;
 
-        // Set colors of all particle systems
+        // Set colors and update duration of all particle systems
         if (mainFlash != null)
         {
             var mainModule = mainFlash.main;
             mainModule.startColor = flashColor;
+
+            // Extend particle lifetime if needed to match the new duration
+            if (mainModule.startLifetime.constant < effectDuration)
+            {
+                mainModule.startLifetime = effectDuration * 0.8f; // Slightly shorter than total duration
+            }
+
             mainFlash.Play();
         }
 
@@ -73,12 +80,19 @@ public class TransformationFlashEffect : MonoBehaviour
                 {
                     var mainModule = effect.main;
                     mainModule.startColor = flashColor;
+
+                    // Extend particle lifetime for additional effects too
+                    if (mainModule.startLifetime.constant < effectDuration)
+                    {
+                        mainModule.startLifetime = effectDuration * 0.7f;
+                    }
+
                     effect.Play();
                 }
             }
         }
 
-        // Handle the light effect
+        // Handle the light effect with extended duration
         if (flashLight != null)
         {
             StartCoroutine(LightFlashSequence());
@@ -109,6 +123,22 @@ public class TransformationFlashEffect : MonoBehaviour
             yield return null;
         }
 
+        // Don't turn off the light immediately - fade it out more gradually
+        float extraFadeTime = 1.0f;
+        timer = 0f;
+        float startIntensity = flashLight.intensity;
+
+        while (timer < extraFadeTime)
+        {
+            timer += Time.deltaTime;
+            float normalizedTime = Mathf.Clamp01(timer / extraFadeTime);
+
+            // Fade out gradually
+            flashLight.intensity = Mathf.Lerp(startIntensity, 0, normalizedTime);
+
+            yield return null;
+        }
+
         flashLight.enabled = false;
     }
 
@@ -129,9 +159,9 @@ public class TransformationFlashEffect : MonoBehaviour
 
         // Set up main flash
         var main = mainPS.main;
-        main.duration = 1.0f;
+        main.duration = 5.0f;  // Increased from 1.0f
         main.loop = false;
-        main.startLifetime = 0.5f;
+        main.startLifetime = 2.5f;  // Increased from 0.5f
         main.startSpeed = 0f;
         main.startSize = 10f;
         main.startColor = Color.green;

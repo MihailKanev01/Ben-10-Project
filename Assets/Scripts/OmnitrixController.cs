@@ -12,7 +12,7 @@ public class OmnitrixController : MonoBehaviour
         public CharacterController alienController;
         public MonoBehaviour alienScript;
         public Transform cameraTarget;
-        public float transformationCooldown = 30f;
+       // public float transformationCooldown = 30f;
         public KeyCode transformationKey = KeyCode.Alpha1;
 
         [Header("Camera Settings")]
@@ -416,7 +416,7 @@ public class OmnitrixController : MonoBehaviour
 
         AlienForm alien = availableAliens[alienIndex];
         alien.isOnCooldown = true;
-        alien.cooldownRemaining = alien.transformationCooldown;
+       // alien.cooldownRemaining = alien.transformationCooldown;
     }
 
     void PlayTransformationEffects()
@@ -576,11 +576,11 @@ public class OmnitrixController : MonoBehaviour
 
     public float GetTransformationTimeRemaining() { return transformationTimeRemaining; }
 
-    public float GetTransformationTimePercentage()
-    {
-        if (!isTransformed) return 0f;
-        return transformationTimeRemaining / transformationDuration;
-    }
+    //public float GetTransformationTimePercentage()
+    //{
+    //    if (!isTransformed) return 0f;
+    //    return transformationTimeRemaining / transformationDuration;
+    //}
 
     public string GetCurrentAlienName()
     {
@@ -614,16 +614,16 @@ public class OmnitrixController : MonoBehaviour
         return availableAliens[alienIndex].isOnCooldown;
     }
 
-    public float GetAlienCooldownPercentage(int alienIndex)
-    {
-        if (alienIndex < 0 || alienIndex >= availableAliens.Count)
-            return 0f;
+    //public float GetAlienCooldownPercentage(int alienIndex)
+    //{
+    //    if (alienIndex < 0 || alienIndex >= availableAliens.Count)
+    //        return 0f;
 
-        if (!availableAliens[alienIndex].isOnCooldown)
-            return 0f;
+    //    if (!availableAliens[alienIndex].isOnCooldown)
+    //        return 0f;
 
-        return availableAliens[alienIndex].cooldownRemaining / availableAliens[alienIndex].transformationCooldown;
-    }
+    //    return availableAliens[alienIndex].cooldownRemaining / availableAliens[alienIndex].transformationCooldown;
+    //}
 
     public void TransformPressed()
     {

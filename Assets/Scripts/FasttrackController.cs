@@ -11,13 +11,13 @@ public class FasttrackController : MonoBehaviour
     public float speedSmoothTime = 0.1f;
 
     [Header("Jump Settings")]
-    public float jumpForce = 15.0f; // INCREASED from 10.0f
+    public float jumpForce = 15.0f;
     public float gravity = -25.0f;
 
     [Header("Ground Check")]
     public Transform groundCheck;
-    public float groundDistance = 1.0f; // INCREASED from 0.4f for better detection
-    public LayerMask groundMask = -1;   // Default to Everything
+    public float groundDistance = 1.0f;
+    public LayerMask groundMask = -1;
 
     [Header("Speed Abilities")]
     public KeyCode superSpeedKey = KeyCode.LeftShift;
@@ -25,7 +25,17 @@ public class FasttrackController : MonoBehaviour
     public float slowMotionFactor = 0.2f;
 
     [Header("Visual Effects")]
-    public List<TrailRenderer> speedTrails = new List<TrailRenderer>();
+    // Mesh trail system
+    public bool useMeshTrails = true;
+    public float meshTrailActiveTime = 2f;
+    public float meshRefreshRate = 0.03f;
+    public float meshDestroyDelay = 3f;
+    public Transform meshTrailSpawnPosition;
+    public string meshTrailShaderVarRef = "_Alpha"; // Common dissolve parameter name
+    public float meshTrailShaderVarRate = 0.1f;
+    public float meshTrailShaderVarRefreshRate = 0.05f;
+    public Material meshTrailMaterial;
+
     public float speedThreshold = 8.0f;
 
     [Header("Post-Processing")]
@@ -64,6 +74,11 @@ public class FasttrackController : MonoBehaviour
     private bool superSpeedSoundPlayed = false;
     private float originalFixedDeltaTime;
 
+    // Mesh Trail variables
+    private bool isMeshTrailActive = false;
+    private Coroutine activeMeshTrailCoroutine;
+    private SkinnedMeshRenderer[] skinnedMeshRenderers;
+
     private int speedHash;
     private int jumpHash;
     private int groundedHash;
@@ -100,7 +115,7 @@ public class FasttrackController : MonoBehaviour
         {
             groundCheck = new GameObject("FasttrackGroundCheck").transform;
             groundCheck.SetParent(transform);
-            groundCheck.localPosition = new Vector3(0, -1.5f, 0); // LOWERED for better ground detection
+            groundCheck.localPosition = new Vector3(0, -1.5f, 0);
             Debug.Log("Created ground check at -1.5 height");
         }
 
@@ -111,11 +126,20 @@ public class FasttrackController : MonoBehaviour
             Debug.Log("Ground mask was 0, set to Everything layer");
         }
 
-        // For safety, disable all trails initially
-        foreach (TrailRenderer trail in speedTrails)
+        // Cache skinned mesh renderers for mesh trails
+        if (useMeshTrails)
         {
-            if (trail != null)
-                trail.emitting = false;
+            skinnedMeshRenderers = GetComponentsInChildren<SkinnedMeshRenderer>();
+            if (skinnedMeshRenderers.Length == 0)
+            {
+                Debug.LogWarning("No SkinnedMeshRenderers found for mesh trails. Check character hierarchy.");
+            }
+
+            // Set default spawn position if not specified
+            if (meshTrailSpawnPosition == null)
+            {
+                meshTrailSpawnPosition = transform;
+            }
         }
 
         // Debug info at startup
@@ -149,7 +173,7 @@ public class FasttrackController : MonoBehaviour
         HandleJumping();
         ApplyGravity();
         UpdateCameraTarget();
-        UpdateTrailEffects();
+        UpdateVisualEffects();
     }
 
     void CheckGroundedMultiMethod()
@@ -221,6 +245,8 @@ public class FasttrackController : MonoBehaviour
         }
     }
 
+    // Modify the ProcessMovement method by removing the speed boost in slow motion:
+
     void ProcessMovement()
     {
         float horizontal = Input.GetAxisRaw("Horizontal");
@@ -280,8 +306,8 @@ public class FasttrackController : MonoBehaviour
                 targetSpeed *= superSpeedMultiplier;
             }
 
-            // Additional speed boost during slow motion to make Fasttrack appear faster
-            if (isSlowMotionActive) targetSpeed *= (1f / slowMotionFactor);
+            // REMOVE THIS SPEED BOOST TO ALLOW TRUE SLOW MOTION:
+            // if (isSlowMotionActive) targetSpeed *= (1f / slowMotionFactor);
 
             targetSpeed *= direction.magnitude;
 
@@ -333,17 +359,11 @@ public class FasttrackController : MonoBehaviour
 
         if (animator != null)
         {
-            // When in slow motion, compensate the animator speed
-            if (isSlowMotionActive)
-            {
-                animator.SetFloat(speedHash, currentSpeed * slowMotionFactor);
-                animator.speed = 1f / slowMotionFactor; // Make animations run at normal speed
-            }
-            else
-            {
-                animator.SetFloat(speedHash, currentSpeed);
-                animator.speed = 1f; // Normal animation speed
-            }
+            // Just set the speed parameter directly without compensation for slow motion
+            animator.SetFloat(speedHash, currentSpeed);
+
+            // Don't adjust animator speed in slow motion - let it actually run slow
+            animator.speed = 1.0f; // Same speed in both normal and slow motion
         }
     }
 
@@ -396,6 +416,140 @@ public class FasttrackController : MonoBehaviour
         if (cameraTarget != null)
         {
             cameraTarget.position = new Vector3(transform.position.x, transform.position.y + 1.5f, transform.position.z);
+        }
+    }
+
+    void UpdateVisualEffects()
+    {
+        // Check if we should show trail effects based on character state
+        bool shouldShowTrails = isSuperSpeedActive || currentSpeed > speedThreshold || isSlowMotionActive;
+
+        // Handle mesh trails if enabled
+        if (useMeshTrails && shouldShowTrails && !isMeshTrailActive)
+        {
+            if (activeMeshTrailCoroutine != null)
+            {
+                StopCoroutine(activeMeshTrailCoroutine);
+            }
+            activeMeshTrailCoroutine = StartCoroutine(ActivateMeshTrail(meshTrailActiveTime));
+        }
+        else if (useMeshTrails && !shouldShowTrails && isMeshTrailActive)
+        {
+            if (activeMeshTrailCoroutine != null)
+            {
+                StopCoroutine(activeMeshTrailCoroutine);
+                isMeshTrailActive = false;
+            }
+        }
+    }
+
+    IEnumerator ActivateMeshTrail(float timeActive)
+    {
+        isMeshTrailActive = true;
+
+        // Cache skinnedMeshRenderers if not already cached
+        if (skinnedMeshRenderers == null || skinnedMeshRenderers.Length == 0)
+        {
+            skinnedMeshRenderers = GetComponentsInChildren<SkinnedMeshRenderer>();
+            if (skinnedMeshRenderers.Length == 0)
+            {
+                Debug.LogWarning("No SkinnedMeshRenderers found for mesh trails.");
+                isMeshTrailActive = false;
+                yield break;
+            }
+        }
+
+        // Check if we have the required material
+        if (meshTrailMaterial == null)
+        {
+            Debug.LogWarning("Mesh trail material is not assigned.");
+            isMeshTrailActive = false;
+            yield break;
+        }
+
+        while (timeActive > 0)
+        {
+            timeActive -= meshRefreshRate;
+
+            // Create mesh copies for each skinned mesh renderer
+            for (int i = 0; i < skinnedMeshRenderers.Length; i++)
+            {
+                if (skinnedMeshRenderers[i] == null) continue;
+
+                // Create game object for the trail mesh
+                GameObject trailMeshObject = new GameObject($"TrailMesh_{skinnedMeshRenderers[i].name}");
+
+                // Position and rotation setup
+                trailMeshObject.transform.SetPositionAndRotation(
+                    meshTrailSpawnPosition != null ? meshTrailSpawnPosition.position : transform.position,
+                    meshTrailSpawnPosition != null ? meshTrailSpawnPosition.rotation : transform.rotation
+                );
+
+                // Apply rotation correction to make trails vertical behind the character
+                trailMeshObject.transform.Rotate(-90, 0, 180);
+
+                // Add mesh components
+                MeshRenderer meshRenderer = trailMeshObject.AddComponent<MeshRenderer>();
+                MeshFilter meshFilter = trailMeshObject.AddComponent<MeshFilter>();
+
+                // Disable shadows for better performance
+                meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                meshRenderer.receiveShadows = false;
+
+                // Create a new mesh and bake the skinned mesh to it
+                Mesh bakeMesh = new Mesh();
+                skinnedMeshRenderers[i].BakeMesh(bakeMesh);
+                meshFilter.mesh = bakeMesh;
+
+                // Set material
+                meshRenderer.material = new Material(meshTrailMaterial);
+
+                // Start dissolve animation coroutine
+                StartCoroutine(AnimateMaterialFloat(
+                    meshRenderer.material,
+                    0,
+                    meshTrailShaderVarRate,
+                    meshTrailShaderVarRefreshRate
+                ));
+
+                // Schedule destruction
+                Destroy(trailMeshObject, meshDestroyDelay);
+            }
+
+            // Wait for next refresh cycle
+            yield return new WaitForSeconds(
+                isSlowMotionActive ? meshRefreshRate * slowMotionFactor : meshRefreshRate
+            );
+        }
+
+        isMeshTrailActive = false;
+    }
+
+    IEnumerator AnimateMaterialFloat(Material material, float goal, float rate, float refreshRate)
+    {
+        if (string.IsNullOrEmpty(meshTrailShaderVarRef))
+        {
+            Debug.LogWarning("Shader variable reference name is empty.");
+            yield break;
+        }
+
+        if (!material.HasProperty(meshTrailShaderVarRef))
+        {
+            Debug.LogWarning($"Shader variable '{meshTrailShaderVarRef}' not found in trail material.");
+            yield break;
+        }
+
+        float valueToAnimate = material.GetFloat(meshTrailShaderVarRef);
+
+        while (valueToAnimate > goal)
+        {
+            valueToAnimate -= rate;
+            material.SetFloat(meshTrailShaderVarRef, valueToAnimate);
+
+            // Use scaled or unscaled time based on slow motion state
+            yield return new WaitForSeconds(
+                isSlowMotionActive ? refreshRate * slowMotionFactor : refreshRate
+            );
         }
     }
 
@@ -479,22 +633,6 @@ public class FasttrackController : MonoBehaviour
         Debug.Log("Fasttrack: Slow Motion deactivated.");
     }
 
-    void UpdateTrailEffects()
-    {
-        // Direct trail control - just turn them on/off based on current state
-        foreach (TrailRenderer trail in speedTrails)
-        {
-            if (trail != null)
-            {
-                // Simple condition: super speed OR above threshold OR slow motion
-                bool shouldEmit = isSuperSpeedActive || currentSpeed > speedThreshold || isSlowMotionActive;
-
-                // Set the emission directly
-                trail.emitting = shouldEmit;
-            }
-        }
-    }
-
     public void SetControllerActive(bool active)
     {
         this.enabled = active;
@@ -511,11 +649,14 @@ public class FasttrackController : MonoBehaviour
             isSlowMotionActive = false;
         }
 
-        // Directly disable all trails
-        foreach (TrailRenderer trail in speedTrails)
+        // Clean up mesh trails when deactivating
+        if (!active && useMeshTrails && isMeshTrailActive)
         {
-            if (trail != null)
-                trail.emitting = false;
+            if (activeMeshTrailCoroutine != null)
+            {
+                StopCoroutine(activeMeshTrailCoroutine);
+                isMeshTrailActive = false;
+            }
         }
 
         if (slowMoAudioSource != null) slowMoAudioSource.Stop();
@@ -532,6 +673,14 @@ public class FasttrackController : MonoBehaviour
             // Show raycast
             Gizmos.color = Color.blue;
             Gizmos.DrawLine(groundCheck.position, groundCheck.position + Vector3.down * groundDistance * 1.5f);
+        }
+
+        // Show mesh trail spawn position if assigned
+        if (meshTrailSpawnPosition != null)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireSphere(meshTrailSpawnPosition.position, 0.2f);
+            Gizmos.DrawRay(meshTrailSpawnPosition.position, meshTrailSpawnPosition.forward * 0.5f);
         }
 
         Gizmos.color = Color.blue;

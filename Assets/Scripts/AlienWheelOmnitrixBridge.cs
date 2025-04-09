@@ -31,6 +31,7 @@ public class AlienWheelOmnitrixBridge : MonoBehaviour
     // Used to detect actual Ben button click
     private int previousAlienId = -1;
     private bool wheelJustOpened = false;
+    private int savedAlienId = 0; // Store the alien ID when wheel closes
 
     void Start()
     {
@@ -58,6 +59,7 @@ public class AlienWheelOmnitrixBridge : MonoBehaviour
         lastProcessedId = 0;
         transformationInProgress = false;
         previousAlienId = -1;
+        savedAlienId = 0;
 
         // Disable Ben button in human form
         UpdateBenButtonState();
@@ -78,54 +80,74 @@ public class AlienWheelOmnitrixBridge : MonoBehaviour
         // Check if wheel state changed
         if (!wheelJustOpened && alienWheelController.alienWheelSelected)
         {
+            // Wheel just opened
             wheelJustOpened = true;
             UpdateBenButtonState();
-            previousAlienId = 0; // Reset when wheel opens
+            previousAlienId = AlienWheelController.alienId; // Capture current ID when wheel opens
+            if (debugMode)
+                Debug.Log($"Wheel opened, previousAlienId set to {previousAlienId}");
         }
         else if (wheelJustOpened && !alienWheelController.alienWheelSelected)
         {
+            // Wheel just closed
             wheelJustOpened = false;
+            savedAlienId = AlienWheelController.alienId; // Save ID when wheel closes
+            if (debugMode)
+                Debug.Log($"Wheel closed, saved alienId {savedAlienId}");
         }
 
         // Skip processing if a transformation is in progress
         if (transformationInProgress)
             return;
 
-        // Get the current selection from the wheel
-        int selectedAlienId = AlienWheelController.alienId;
-
-        // Only process when alien ID changes
-        if (selectedAlienId != previousAlienId)
+        // *** CRITICAL FIX: Only process alien ID changes when the wheel is OPEN ***
+        if (alienWheelController.alienWheelSelected)
         {
-            if (debugMode)
-                Debug.Log($"Alien ID changed from {previousAlienId} to {selectedAlienId}");
+            // Get the current selection from the wheel
+            int selectedAlienId = AlienWheelController.alienId;
 
-            // Process Ben button selection (revert to human)
-            if (selectedAlienId == 0 && previousAlienId > 0 && omnitrixController.IsTransformed)
+            // Only process when alien ID changes
+            if (selectedAlienId != previousAlienId)
             {
                 if (debugMode)
-                    Debug.Log("Detected Ben button click, reverting to human form");
+                    Debug.Log($"Alien ID changed from {previousAlienId} to {selectedAlienId}");
 
-                // Revert to Ben
-                transformationInProgress = true;
-                StartCoroutine(RevertToBenCoroutine());
-
-                // Close wheel
-                if (closeWheelAfterSelection && alienWheelController != null)
+                // Process Ben button selection (revert to human)
+                if (selectedAlienId == 0 && previousAlienId > 0 && omnitrixController.IsTransformed)
                 {
-                    alienWheelController.alienWheelSelected = false;
-                    alienWheelController.anim.SetBool("openAlienWheel", false);
-                    alienWheelController.CloseWheel();
-                }
-            }
-            // Process alien selection (transform)
-            else if (selectedAlienId > 0 && selectedAlienId != lastProcessedId)
-            {
-                ProcessAlienSelection(selectedAlienId);
-            }
+                    if (debugMode)
+                        Debug.Log("Detected Ben button click, reverting to human form");
 
-            // Update previous ID
-            previousAlienId = selectedAlienId;
+                    // Revert to Ben
+                    transformationInProgress = true;
+                    StartCoroutine(RevertToBenCoroutine());
+
+                    // Close wheel
+                    if (closeWheelAfterSelection && alienWheelController != null)
+                    {
+                        alienWheelController.alienWheelSelected = false;
+                        alienWheelController.anim.SetBool("openAlienWheel", false);
+                        alienWheelController.CloseWheel();
+                    }
+                }
+                // Process alien selection (transform)
+                else if (selectedAlienId > 0 && selectedAlienId != lastProcessedId)
+                {
+                    ProcessAlienSelection(selectedAlienId);
+                }
+
+                // Update previous ID
+                previousAlienId = selectedAlienId;
+            }
+        }
+        // If wheel is closed, restore the saved alien ID to prevent processing false changes
+        else if (AlienWheelController.alienId != savedAlienId)
+        {
+            if (debugMode)
+                Debug.Log($"Wheel is closed but alienId changed from {savedAlienId} to {AlienWheelController.alienId}, resetting");
+
+            // Reset alienId to prevent unwanted transformations
+            AlienWheelController.alienId = savedAlienId;
         }
     }
 
@@ -248,6 +270,9 @@ public class AlienWheelOmnitrixBridge : MonoBehaviour
         yield return new WaitForSeconds(0.5f);
         transformationInProgress = false;
 
+        // Update saved alien ID after transformation
+        savedAlienId = AlienWheelController.alienId;
+
         if (debugMode)
         {
             Debug.Log("Transformation sequence completed.");
@@ -285,6 +310,9 @@ public class AlienWheelOmnitrixBridge : MonoBehaviour
         // Reset processed ID
         lastProcessedId = 0;
 
+        // Update saved alien ID after transformation
+        savedAlienId = 0;
+
         if (debugMode)
         {
             Debug.Log("Reversion to Ben completed");
@@ -309,6 +337,7 @@ public class AlienWheelOmnitrixBridge : MonoBehaviour
 
             // Update the last processed ID
             lastProcessedId = 0;
+            savedAlienId = 0;
         }
     }
 

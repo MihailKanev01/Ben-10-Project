@@ -63,7 +63,7 @@ public class AlienSelectionButtonController : MonoBehaviour
         // Find Ben's button if not assigned
         if (!isBenButton && benButton == null)
         {
-            AlienSelectionButtonController[] buttons = FindObjectsOfType<AlienSelectionButtonController>();
+            AlienSelectionButtonController[] buttons = FindObjectsByType<AlienSelectionButtonController>(FindObjectsSortMode.None);
             foreach (var button in buttons)
             {
                 if (button.isBenButton)

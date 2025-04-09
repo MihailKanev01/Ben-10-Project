@@ -67,7 +67,7 @@ public class AlienWheelController : MonoBehaviour
         // Find all alien buttons if not assigned
         if (alienButtons == null || alienButtons.Length == 0)
         {
-            alienButtons = FindObjectsOfType<AlienSelectionButtonController>();
+            alienButtons = FindObjectsByType<AlienSelectionButtonController>(FindObjectsSortMode.None);
         }
 
         // Find Ben's button if not assigned

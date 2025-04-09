@@ -12,7 +12,6 @@ public class OmnitrixController : MonoBehaviour
         public CharacterController alienController;
         public MonoBehaviour alienScript;
         public Transform cameraTarget;
-       // public float transformationCooldown = 30f;
         public KeyCode transformationKey = KeyCode.Alpha1;
 
         [Header("Camera Settings")]
@@ -33,11 +32,6 @@ public class OmnitrixController : MonoBehaviour
 
     [Header("Available Aliens")]
     public List<AlienForm> availableAliens = new List<AlienForm>();
-
-    [Header("Transformation Settings")]
-    public float transformationDuration = 15f;
-    public KeyCode cycleAlienKey = KeyCode.C;
-    public KeyCode transformKey = KeyCode.T;
 
     [Header("Camera Settings")]
     public FollowCamera followCamera;
@@ -65,7 +59,6 @@ public class OmnitrixController : MonoBehaviour
     public float maxScreenFlashAlpha = 0.5f;
 
     private bool isTransformed = false;
-    private float transformationTimeRemaining = 0f;
     private AudioSource audioSource;
     private int currentAlienIndex = -1;
     private int selectedAlienIndex = 0;
@@ -142,34 +135,7 @@ public class OmnitrixController : MonoBehaviour
 
     void Update()
     {
-        HandleAlienSelection();
-        HandleTransformationInput();
-        UpdateTransformationTimer();
-        UpdateAlienCooldowns();
-    }
-
-    void HandleAlienSelection()
-    {
-        if (Input.GetKeyDown(cycleAlienKey) && !isTransformed)
-        {
-            CycleToNextAlien();
-        }
-    }
-
-    void HandleTransformationInput()
-    {
-        if (Input.GetKeyDown(transformKey))
-        {
-            if (!isTransformed)
-            {
-                TransformToAlien(selectedAlienIndex);
-            }
-            else
-            {
-                RevertToBen();
-            }
-        }
-
+        // Handle direct alien selection through hotkeys
         for (int i = 0; i < availableAliens.Count; i++)
         {
             if (i < availableAliens.Count && Input.GetKeyDown(availableAliens[i].transformationKey))
@@ -188,19 +154,8 @@ public class OmnitrixController : MonoBehaviour
                 }
             }
         }
-    }
 
-    void UpdateTransformationTimer()
-    {
-        if (isTransformed)
-        {
-            transformationTimeRemaining -= Time.deltaTime;
-
-            if (transformationTimeRemaining <= 0)
-            {
-                RevertToBen();
-            }
-        }
+        UpdateAlienCooldowns();
     }
 
     void UpdateAlienCooldowns()
@@ -220,9 +175,13 @@ public class OmnitrixController : MonoBehaviour
         }
     }
 
-    void CycleToNextAlien()
+    // Sets the selected alien without transforming
+    public void SelectAlien(int alienIndex)
     {
-        selectedAlienIndex = (selectedAlienIndex + 1) % availableAliens.Count;
+        if (alienIndex >= 0 && alienIndex < availableAliens.Count)
+        {
+            selectedAlienIndex = alienIndex;
+        }
     }
 
     void TransformToAlien(int alienIndex)
@@ -319,7 +278,6 @@ public class OmnitrixController : MonoBehaviour
 
             currentAlienIndex = targetAlienIndex;
             isTransformed = true;
-            transformationTimeRemaining = transformationDuration;
         }
 
         yield return new WaitForSeconds(0.3f);
@@ -416,7 +374,7 @@ public class OmnitrixController : MonoBehaviour
 
         AlienForm alien = availableAliens[alienIndex];
         alien.isOnCooldown = true;
-       // alien.cooldownRemaining = alien.transformationCooldown;
+        // Removed cooldown duration setting - no more cooldowns
     }
 
     void PlayTransformationEffects()
@@ -574,14 +532,6 @@ public class OmnitrixController : MonoBehaviour
 
     public bool IsTransformed { get { return isTransformed; } }
 
-    public float GetTransformationTimeRemaining() { return transformationTimeRemaining; }
-
-    //public float GetTransformationTimePercentage()
-    //{
-    //    if (!isTransformed) return 0f;
-    //    return transformationTimeRemaining / transformationDuration;
-    //}
-
     public string GetCurrentAlienName()
     {
         if (!isTransformed) return "Ben Tennyson";
@@ -614,17 +564,7 @@ public class OmnitrixController : MonoBehaviour
         return availableAliens[alienIndex].isOnCooldown;
     }
 
-    //public float GetAlienCooldownPercentage(int alienIndex)
-    //{
-    //    if (alienIndex < 0 || alienIndex >= availableAliens.Count)
-    //        return 0f;
-
-    //    if (!availableAliens[alienIndex].isOnCooldown)
-    //        return 0f;
-
-    //    return availableAliens[alienIndex].cooldownRemaining / availableAliens[alienIndex].transformationCooldown;
-    //}
-
+    // Public methods for external controls (UI buttons, etc.)
     public void TransformPressed()
     {
         if (!isTransformed)
@@ -637,11 +577,30 @@ public class OmnitrixController : MonoBehaviour
         }
     }
 
+    // For UI buttons to cycle aliens
+    public void CycleToNextAlien()
+    {
+        if (!isTransformed)
+        {
+            selectedAlienIndex = (selectedAlienIndex + 1) % availableAliens.Count;
+        }
+    }
+
+    // For UI buttons to cycle aliens
+    public void CycleToPreviousAlien()
+    {
+        if (!isTransformed)
+        {
+            selectedAlienIndex = (selectedAlienIndex - 1 + availableAliens.Count) % availableAliens.Count;
+        }
+    }
+
+    // For the wheel UI
     public void PublicCycleToNextAlien()
     {
         if (!isTransformed)
         {
-            CycleToNextAlien();
+            selectedAlienIndex = (selectedAlienIndex + 1) % availableAliens.Count;
         }
     }
 }

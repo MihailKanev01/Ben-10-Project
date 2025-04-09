@@ -44,7 +44,7 @@ public class WayBigController : MonoBehaviour
     private float stompCooldownRemaining = 0f;
     private Transform mainCamera;
     private bool isInitialized = false;
-    private bool isInStandingAnimation = false;
+    //private bool isInStandingAnimation = false;
 
     private int speedHash;
     private int jumpHash;
@@ -112,12 +112,7 @@ public class WayBigController : MonoBehaviour
 
         if (animator != null && animator.GetCurrentAnimatorStateInfo(0).IsName("StandingAnimation"))
         {
-            isInStandingAnimation = true;
             return;
-        }
-        else
-        {
-            isInStandingAnimation = false;
         }
 
         UpdateCooldowns();

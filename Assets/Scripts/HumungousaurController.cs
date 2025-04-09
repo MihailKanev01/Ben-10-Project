@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class HumungousaurController : MonoBehaviour
 {
@@ -10,7 +11,6 @@ public class HumungousaurController : MonoBehaviour
 
     [Header("Jump Settings")]
     public float jumpForce = 7.0f;
-    public Vector3 jumpDirection = new Vector3(0.0f, 1.0f, 0.0f);
     public float gravity = -20.0f;
 
     [Header("Ground Check")]
@@ -19,20 +19,17 @@ public class HumungousaurController : MonoBehaviour
     public LayerMask groundMask;
 
     [Header("Special Abilities")]
-    public float growthDuration = 3.0f;
+    public float growthDuration = 1.5f;  // How long the growth transition takes
     public float maxSizeMultiplier = 2.0f;
     public float groundPoundRadius = 6.0f;
     public float groundPoundDamage = 30.0f;
     public float groundPoundCooldown = 5.0f;
     public KeyCode groundPoundKey = KeyCode.E;
-    public KeyCode growSizeKey = KeyCode.Q;
+    public KeyCode growSizeKey = KeyCode.F;
 
     [Header("Effects")]
     public ParticleSystem groundPoundEffect;
     public ParticleSystem growEffect;
-    public AudioClip groundPoundSound;
-    public AudioClip growSound;
-    public AudioClip roarSound;
 
     [Header("References")]
     public Transform cameraTarget;
@@ -44,7 +41,6 @@ public class HumungousaurController : MonoBehaviour
     private float currentSpeed;
     private Vector3 velocity;
     private bool isGrounded;
-    private float targetSpeed;
     private Transform mainCamera;
     private AudioSource audioSource;
     private Vector3 originalScale;
@@ -53,22 +49,11 @@ public class HumungousaurController : MonoBehaviour
     private float groundPoundCooldownRemaining = 0f;
 
     private int speedHash;
-    private int jumpHash;
     private int groundedHash;
-    private int poundHash;
-    private int growHash;
-    private int standingHash;
-    private int roarHash;
 
     void Start()
     {
-        InitializeComponents();
-        SetupAnimation();
-        SetupGroundCheck();
-    }
-
-    void InitializeComponents()
-    {
+        Debug.Log("[Humungousaur] Starting initialization");
         controller = GetComponent<CharacterController>();
         animator = GetComponent<Animator>();
         mainCamera = Camera.main.transform;
@@ -79,31 +64,24 @@ public class HumungousaurController : MonoBehaviour
             audioSource = gameObject.AddComponent<AudioSource>();
         }
 
+        // Important: Store the original scale
         originalScale = transform.localScale;
-    }
 
-    void SetupAnimation()
-    {
+        // Only set up the animation parameters that actually exist
         if (animator != null)
         {
             speedHash = Animator.StringToHash("Speed");
-            jumpHash = Animator.StringToHash("Jump");
             groundedHash = Animator.StringToHash("Grounded");
-            poundHash = Animator.StringToHash("GroundPound");
-            growHash = Animator.StringToHash("Grow");
-            standingHash = Animator.StringToHash("Standing");
-            roarHash = Animator.StringToHash("Roar");
         }
-    }
 
-    void SetupGroundCheck()
-    {
         if (groundCheck == null)
         {
             groundCheck = new GameObject("HumungousaurGroundCheck").transform;
             groundCheck.SetParent(transform);
             groundCheck.localPosition = new Vector3(0, -0.9f, 0);
         }
+
+        isGrowing = false;
     }
 
     void Update()
@@ -160,7 +138,7 @@ public class HumungousaurController : MonoBehaviour
             transform.rotation = Quaternion.Euler(0f, angle, 0f);
 
             Vector3 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
-            targetSpeed = ((running) ? runSpeed : walkSpeed) * direction.magnitude;
+            float targetSpeed = ((running) ? runSpeed : walkSpeed) * direction.magnitude;
             currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref speedSmoothVelocity, speedSmoothTime);
             controller.Move(moveDir.normalized * currentSpeed * Time.deltaTime);
         }
@@ -179,14 +157,7 @@ public class HumungousaurController : MonoBehaviour
     {
         if (Input.GetButtonDown("Jump") && isGrounded)
         {
-            float jumpVelocity = Mathf.Sqrt(jumpForce * -2f * gravity);
-            velocity.y = jumpVelocity;
-
-            if (animator != null)
-            {
-                animator.SetTrigger(jumpHash);
-            }
-
+            velocity.y = Mathf.Sqrt(jumpForce * -2f * gravity);
             isGrounded = false;
         }
     }
@@ -199,24 +170,17 @@ public class HumungousaurController : MonoBehaviour
 
     void HandleAbilities()
     {
-        if (Input.GetKeyDown(groundPoundKey) && isGrounded && groundPoundCooldownRemaining <= 0)
+        // Check for F key to toggle size
+        if (Input.GetKeyDown(growSizeKey))
         {
-            PerformGroundPound();
-        }
-
-        if (Input.GetKeyDown(growSizeKey) && isGrounded)
-        {
+            Debug.Log("[Humungousaur] Growth key pressed");
             ToggleSize();
         }
 
-        if (Input.GetKeyDown(KeyCode.R) && isGrounded && animator != null)
+        // Check for ground pound
+        if (Input.GetKeyDown(groundPoundKey) && isGrounded && groundPoundCooldownRemaining <= 0)
         {
-            animator.SetTrigger(roarHash);
-
-            if (audioSource != null && roarSound != null)
-            {
-                audioSource.PlayOneShot(roarSound);
-            }
+            PerformGroundPound();
         }
     }
 
@@ -231,20 +195,12 @@ public class HumungousaurController : MonoBehaviour
 
     void PerformGroundPound()
     {
-        if (animator != null)
-        {
-            animator.SetTrigger(poundHash);
-        }
+        Debug.Log("[Humungousaur] Performing ground pound");
 
         if (groundPoundEffect != null)
         {
             groundPoundEffect.transform.position = groundCheck.position;
             groundPoundEffect.Play();
-        }
-
-        if (audioSource != null && groundPoundSound != null)
-        {
-            audioSource.PlayOneShot(groundPoundSound);
         }
 
         Collider[] hitColliders = Physics.OverlapSphere(transform.position, groundPoundRadius);
@@ -272,28 +228,28 @@ public class HumungousaurController : MonoBehaviour
 
     void ToggleSize()
     {
-        if (isGrowing) return;
+        Debug.Log("[Humungousaur] ToggleSize called. isGrowing: " + isGrowing);
+
+        if (isGrowing)
+        {
+            Debug.Log("[Humungousaur] Already growing, ignoring request");
+            return;
+        }
+
+        Debug.Log("[Humungousaur] Starting growth coroutine");
         StartCoroutine(ChangeSize());
     }
 
-    System.Collections.IEnumerator ChangeSize()
+    IEnumerator ChangeSize()
     {
         isGrowing = true;
         float targetMultiplier = (currentSizeMultiplier == 1.0f) ? maxSizeMultiplier : 1.0f;
 
-        if (animator != null)
-        {
-            animator.SetTrigger(growHash);
-        }
+        Debug.Log("[Humungousaur] ChangeSize started. Growing from " + currentSizeMultiplier + "x to " + targetMultiplier + "x");
 
         if (growEffect != null)
         {
             growEffect.Play();
-        }
-
-        if (audioSource != null && growSound != null)
-        {
-            audioSource.PlayOneShot(growSound);
         }
 
         float elapsedTime = 0f;
@@ -307,9 +263,12 @@ public class HumungousaurController : MonoBehaviour
         Vector3 startCenter = controller.center;
         Vector3 targetCenter = startCenter * (targetMultiplier / currentSizeMultiplier);
 
+        // Use a smooth curve for the growth effect
         while (elapsedTime < growthDuration)
         {
             float t = elapsedTime / growthDuration;
+
+            // Smooth step formula for more natural growth
             float smoothT = t * t * (3f - 2f * t);
 
             transform.localScale = Vector3.Lerp(startScale, targetScale, smoothT);
@@ -321,6 +280,7 @@ public class HumungousaurController : MonoBehaviour
             yield return null;
         }
 
+        // Ensure we end at exactly the target values
         transform.localScale = targetScale;
         controller.height = targetHeight;
         controller.radius = targetRadius;
@@ -328,16 +288,7 @@ public class HumungousaurController : MonoBehaviour
 
         currentSizeMultiplier = targetMultiplier;
 
-        if (targetMultiplier > 1.0f && animator != null)
-        {
-            animator.SetTrigger(roarHash);
-
-            if (audioSource != null && roarSound != null)
-            {
-                audioSource.PlayOneShot(roarSound);
-            }
-        }
-
+        Debug.Log("[Humungousaur] Size transition complete. Now at " + currentSizeMultiplier + "x size");
         isGrowing = false;
     }
 

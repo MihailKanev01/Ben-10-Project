@@ -48,7 +48,7 @@ public class ThirdPersonCamera : MonoBehaviour
     private float currentPitch = 10.0f;
     private Vector3 currentVelocity = Vector3.zero;
     private float yawSmoothVelocity = 0.0f;
-    private float pitchSmoothVelocity = 0.0f;
+    //private float pitchSmoothVelocity = 0.0f;
     private float distanceSmoothVelocity = 0.0f;
     private float lastMoveTime = 0.0f;
     private bool isPlayerMoving = false;

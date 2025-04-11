@@ -4,18 +4,18 @@ using System.Collections;
 public class HumungousaurController : MonoBehaviour
 {
     [Header("Movement Settings")]
-    public float walkSpeed = 5.0f;
-    public float runSpeed = 10.0f;
-    public float turnSmoothTime = 0.2f;
-    public float speedSmoothTime = 0.3f;
+    public float walkSpeed = 6.0f;      // Increased to match Ben's feel
+    public float runSpeed = 10.0f;       // Increased to match Ben's feel
+    public float turnSmoothTime = 0.1f;  // Matched to Ben's settings
+    public float speedSmoothTime = 0.1f; // Matched to Ben's settings
 
     [Header("Jump Settings")]
-    public float jumpForce = 7.0f;
-    public float gravity = -20.0f;
+    public float jumpForce = 8.0f;      // Matched to Ben's settings
+    public float gravity = -15.0f;      // Matched to Ben's settings
 
     [Header("Ground Check")]
     public Transform groundCheck;
-    public float groundDistance = 0.6f;
+    public float groundDistance = 0.4f;  // Matched to Ben's settings
     public LayerMask groundMask;
 
     [Header("Special Abilities")]
@@ -49,6 +49,7 @@ public class HumungousaurController : MonoBehaviour
     private float groundPoundCooldownRemaining = 0f;
 
     private int speedHash;
+    private int jumpHash;
     private int groundedHash;
 
     void Start()
@@ -71,6 +72,7 @@ public class HumungousaurController : MonoBehaviour
         if (animator != null)
         {
             speedHash = Animator.StringToHash("Speed");
+            jumpHash = Animator.StringToHash("Jump");
             groundedHash = Animator.StringToHash("Grounded");
         }
 
@@ -81,7 +83,21 @@ public class HumungousaurController : MonoBehaviour
             groundCheck.localPosition = new Vector3(0, -0.9f, 0);
         }
 
+        // Set ground mask to everything if not specified
+        if (groundMask.value == 0)
+        {
+            groundMask = -1; // Everything
+        }
+
         isGrowing = false;
+
+        // Set up camera target if missing
+        if (cameraTarget == null)
+        {
+            cameraTarget = new GameObject("HumungosaurCameraTarget").transform;
+            cameraTarget.SetParent(transform);
+            cameraTarget.localPosition = new Vector3(0, 1.5f, 0);
+        }
     }
 
     void Update()
@@ -111,6 +127,7 @@ public class HumungousaurController : MonoBehaviour
 
     void CheckGroundState()
     {
+        // Use consistent ground check method from Ben's controller
         isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundMask);
 
         if (isGrounded && velocity.y < 0)
@@ -126,6 +143,7 @@ public class HumungousaurController : MonoBehaviour
 
     void HandleMovement()
     {
+        // Use Ben's movement code for consistency
         float horizontal = Input.GetAxisRaw("Horizontal");
         float vertical = Input.GetAxisRaw("Vertical");
         bool running = Input.GetKey(KeyCode.LeftShift);
@@ -133,6 +151,7 @@ public class HumungousaurController : MonoBehaviour
 
         if (direction.magnitude >= 0.1f)
         {
+            // Get movement direction from camera
             float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + mainCamera.eulerAngles.y;
             float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
             transform.rotation = Quaternion.Euler(0f, angle, 0f);
@@ -140,6 +159,7 @@ public class HumungousaurController : MonoBehaviour
             Vector3 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
             float targetSpeed = ((running) ? runSpeed : walkSpeed) * direction.magnitude;
             currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref speedSmoothVelocity, speedSmoothTime);
+
             controller.Move(moveDir.normalized * currentSpeed * Time.deltaTime);
         }
         else
@@ -155,17 +175,30 @@ public class HumungousaurController : MonoBehaviour
 
     void HandleJumping()
     {
-        if (Input.GetButtonDown("Jump") && isGrounded)
+        // Use Ben's jumping code for consistency
+        if ((Input.GetButtonDown("Jump") || Input.GetKeyDown(KeyCode.Space)) && isGrounded)
         {
             velocity.y = Mathf.Sqrt(jumpForce * -2f * gravity);
-            isGrounded = false;
+
+            if (animator != null)
+            {
+                animator.SetTrigger(jumpHash);
+            }
+
+            isGrounded = false; // Immediate feedback
         }
     }
 
     void ApplyGravity()
     {
+        // Use consistent gravity application method
         velocity.y += gravity * Time.deltaTime;
-        controller.Move(velocity * Time.deltaTime);
+
+        // Limit terminal velocity
+        if (velocity.y < -30f)
+            velocity.y = -30f;
+
+        controller.Move(Vector3.up * velocity.y * Time.deltaTime);
     }
 
     void HandleAbilities()
@@ -186,8 +219,10 @@ public class HumungousaurController : MonoBehaviour
 
     void UpdateCameraTarget()
     {
+        // Update camera target position to follow the character with proper height
         if (cameraTarget != null)
         {
+            // Scale the height with size for proper camera positioning during growth
             float heightOffset = 1.5f * currentSizeMultiplier;
             cameraTarget.position = new Vector3(transform.position.x, transform.position.y + heightOffset, transform.position.z);
         }

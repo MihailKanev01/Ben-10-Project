@@ -106,7 +106,7 @@ public class EnemyHealth : MonoBehaviour
             if (rb != null)
             {
                 rb.isKinematic = true;
-                rb.linearVelocity = Vector3.zero;
+                rb.velocity = Vector3.zero;
             }
         }
 

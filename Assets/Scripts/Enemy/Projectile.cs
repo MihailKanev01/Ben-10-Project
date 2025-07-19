@@ -33,7 +33,7 @@ public class Projectile : MonoBehaviour
         // Apply initial velocity
         if (rb != null)
         {
-            rb.linearVelocity = direction * speed;
+            rb.velocity = direction * speed;
         }
 
         // Scale projectile if needed

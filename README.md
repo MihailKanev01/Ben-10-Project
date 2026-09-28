@@ -1,116 +1,67 @@
-# 📜 Ben 10: Project - Unity Game
+# Ben 10: Project
 
+A 3D action-adventure game prototype built in Unity and C# around a transformation-driven gameplay system.
 
-## 🌟 Project Overview  
+## Overview
 
-This is a **3D action-adventure game** based on the *Ben 10* franchise, developed in Unity. Players control **Ben Tennyson** and can transform into various aliens using the Omnitrix, each with unique abilities and gameplay mechanics.
+The project focuses on letting the player control Ben Tennyson and switch between alien forms with different movement and ability behaviours.
 
-## ✨ Features  
+## Features
 
-- **🦸 Multiple Playable Aliens**: Transform into **Humungousaur, Way Big, Fasttrack,** and more!  
-- **💥 Unique Abilities & Combat**:
-  - **Humungousaur**: Size growth, ground pound attacks  
-  - **Way Big**: Cosmic ray projectiles, stomp attacks  
-  - **Fasttrack**: Super speed boost, quick dashes  
-- **🔄 Transformation System**: Dynamic effects, timers, and cooldowns  
-- **🌀 Alien Selection Wheel**: Intuitive UI for smooth alien switching  
-- **🎥 Adaptive Camera System**: Adjusts based on alien size & abilities  
-- **🎮 Smooth Third-Person Controls**: Running, jumping, and special moves  
+- Multiple playable alien forms, including Humungousaur, Way Big and Fasttrack.
+- Transformation and reversion flow.
+- Alien selection wheel UI.
+- Alien-specific abilities and cooldown-oriented gameplay.
+- Adaptive third-person camera behaviour.
+- Third-person movement, jumping and special actions.
+- Collision-based interactions for attacks and abilities.
 
-## 🎮 Controls  
+## Technical focus
 
-### **Basic Movement**
-| Action  | Key |
-|---------|------|
-| Move    | **WASD** |
-| Camera  | **Mouse** |
-| Jump    | **Space** |
-| Run     | **Left Shift** |
+The repository demonstrates work with:
 
-### **Ben 10 Transformation**
-| Action  | Key |
-|---------|------|
-| Open Alien Selection Wheel | **Tab** |
-| Transform/Revert | **T** |
+- Unity
+- C#
+- Character controllers
+- Gameplay state changes
+- Animator-driven character behaviour
+- UI interaction
+- Camera systems
+- Collision detection and special abilities
 
-### **Alien-Specific Controls**
+## Controls
+
 | Action | Key |
-|--------|------|
-| Special Ability 1 | **Q** (Size growth, speed boost, etc.) |
-| Special Ability 2 | **E** (Ground pound, dash, etc.) |
-| Ranged Attack | **F** (Cosmic ray, etc.) |
-| Extra Ability | **R** (Roar, etc.) |
+| --- | --- |
+| Move | WASD |
+| Camera | Mouse |
+| Jump | Space |
+| Run | Left Shift |
+| Open alien wheel | Tab |
+| Transform / revert | T |
+| Ability 1 | Q |
+| Ability 2 | E |
+| Ranged attack | F |
+| Extra ability | R |
 
----
+## Setup
 
-## 🛠️ Technical Details  
+The project targets Unity 2021.3 LTS or newer.
 
-- **Engine**: Unity  
-- **Language**: C#  
-- **Key Implementations**:
-  - 🎮 Custom character controllers  
-  - 🔄 Dynamic transformation system  
-  - 🎥 Adaptive camera adjustments  
-  - ✨ Special effects for abilities  
-  - ⚡ Collision detection for attacks  
-  - 📜 UI interaction systems  
+Some external models and animations are not included in the repository, so a complete local setup may require adding the referenced assets and wiring them in the Unity Inspector.
 
----
+Basic setup:
 
-## 📋 Requirements  
+1. Clone the repository.
+2. Open it with a compatible Unity editor.
+3. Open the main scene.
+4. Configure the player, alien models, animator references and camera references.
+5. Press **Play** and verify the transformation, movement, UI and ability systems.
 
-- **Unity Version**: 2021.3 LTS or newer  
-- **Models & Animations**: (Not included in the repository)  
+## Notes
 
-## ⚙️ Installation & Setup  
+This is a portfolio/game-development project rather than a commercial release. The main value of the repository is the gameplay-system implementation and Unity project structure.
 
-1. **Clone the repository**:  
-   ```sh
-   git clone https://github.com/MihailKanev01/Ben-10-Project.git
-   
-2.**Open in Unity**
-   
-3. **Set up required models & animations**:  
-   - Add the main player object (`BenTennyson`) to the scene.  
-   - Attach the `OmnitrixController` script to the player object.  
-   - Import and set up alien models in the `Aliens` folder.  
-   - Assign appropriate controller scripts to each alien:  
-     - `HumungousaurController.cs`  
-     - `WayBigController.cs`  
-     - `FasttrackController.cs`  
-   - Set up animations in Unity’s Animator and link them to the controllers.  
+## License
 
-4. **Configure the alien selection wheel**:  
-   - Open the `Canvas` object in the **UI hierarchy**.  
-   - Locate the `AlienSelectionWheel` UI panel.  
-   - Assign the available alien models to the selection slots in the **Inspector**.  
-
-5. **Adjust player settings in the Inspector**:  
-   - Open the `OmnitrixController` script in Unity's **Inspector**.  
-   - Modify transformation cooldowns, duration, and ability values based on preferences.  
-   - Adjust movement speed, jump height, and camera sensitivity as needed.  
-
-6. **Configure camera system**:  
-   - Attach the `FollowCamera` or `ThirdPersonCamera` script to the `Main Camera`.  
-   - Ensure it smoothly follows **both Ben and his alien forms**.  
-   - Adjust **camera zoom levels** based on alien size (e.g., zoom out for *Way Big*).  
-
-7. **Test the transformation system**:  
-   - Press **Play** in Unity and verify:  
-     - Ben transforms correctly into different aliens.  
-     - Each alien’s abilities work as expected.  
-     - UI updates properly when selecting a new alien.  
-     - Camera adjusts dynamically to alien sizes.  
-
-8. **Adjust physics & collisions**:  
-   - Ensure all character models have a **Rigidbody** component.  
-   - Set up **BoxCollider** or **CapsuleCollider** for each alien.  
-   - Configure collision layers to prevent unwanted interactions.  
-
-9. **Save your changes** and commit them to GitHub:  
-   ```sh
-   git add .
-   git commit -m "Initial Unity setup and transformations implemented"
-   git push origin main
-
-
+See [LICENSE](LICENSE).

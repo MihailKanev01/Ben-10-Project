@@ -1,39 +1,36 @@
-
 # Ben 10: Project
 
-A 3D action-adventure prototype built with Unity and C#, centred around a transformation-driven gameplay system.
+A Unity/C# 3D action-adventure prototype centred on a **transformation-driven gameplay system**.
 
 ## Overview
 
-The project explores how multiple playable forms can share a common player flow while exposing different movement, animation and ability behaviours.
+The project explores how several playable forms can share a common player flow while exposing different movement, animation and ability behaviours. It combines transformation UI, third-person controls and collision-based combat interactions.
 
 ## Features
 
-- Multiple playable alien forms.
-- Transformation and reversion flow.
-- Alien selection wheel UI.
-- Alien-specific abilities and cooldown-oriented gameplay.
-- Third-person movement and jumping.
-- Adaptive third-person camera behaviour.
-- Collision-based attacks and ability interactions.
-- Animator-driven character behaviour.
+- Multiple playable alien forms
+- Transformation and reversion flow
+- Alien-selection wheel UI
+- Alien-specific abilities and cooldown-oriented gameplay
+- Third-person movement and jumping
+- Adaptive third-person camera behaviour
+- Collision-based attacks and ability interactions
+- Animator-driven character behaviour
 
 ## Technical Focus
 
-- Unity
-- C#
-- Character controllers
-- Gameplay state changes
-- Animation state management
-- UI interaction
-- Camera systems
+- Unity and C#
+- Character controllers and camera systems
+- Gameplay-state transitions
+- Animation-state management
+- UI interaction and input handling
 - Collision detection
 
 ## Controls
 
-| Action | Key |
+| Action | Input |
 | --- | --- |
-| Move | WASD |
+| Move | W / A / S / D |
 | Camera | Mouse |
 | Jump | Space |
 | Run | Left Shift |
@@ -46,20 +43,19 @@ The project explores how multiple playable forms can share a common player flow 
 
 ## Run Locally
 
-The project targets Unity 2021.3 LTS or newer.
+The project targets **Unity 2021.3 LTS or newer**.
 
-1. Clone the repository.
-2. Open it with a compatible Unity editor.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/MihailKanev01/Ben-10-Project.git
+   ```
+2. Open the project in a compatible Unity Editor.
 3. Open the main scene.
-4. Configure player, alien models, animator references and camera references.
-5. Press **Play** and verify the transformation, movement, UI and ability systems.
+4. Check the Inspector references for the player, alien models, animators and camera.
+5. Press **Play** and test movement, transformation, UI and abilities.
 
-Some external models and animations are not included in the repository, so a complete local setup may require additional assets and Inspector configuration.
+Some external models and animations are not included in the repository, so a complete local setup may require additional assets or Inspector configuration.
 
 ## Project Status
 
-This is a portfolio/game-development project rather than a commercial release. The main focus is the implementation of gameplay systems and their integration inside a Unity project.
-
-## License
-
-See [LICENSE](LICENSE).
+A portfolio/game-development prototype focused on integrating multiple gameplay systems inside a Unity project.
